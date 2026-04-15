@@ -1,0 +1,14 @@
+# Archivos de Python
+*.pyc
+__pycache__/
+
+# Entornos virtuales
+venv/
+.env/
+
+# Configuración de editor
+.vscode/
+
+# Salidas y binarios
+*.log
+*.sqlite3
