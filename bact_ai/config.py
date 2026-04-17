@@ -22,15 +22,21 @@ BLUE = (70, 130, 255)
 GRAY = (100, 100, 100)
 LIGHT_GRAY = (180, 180, 180)
 
-# ------------------- parametros de simulación -------------------
-MAX_PARTICLES = 1800
-INITIAL_PARTICLES = 480
-DAMPING = 0.955
+# ------------------- parametros de simulacion -------------------
+MAX_PARTICLES = 1200
+INITIAL_PARTICLES = 350
+
+# freno de velocidad
+DAMPING = 0.96 
+# delta time (tiempo por frame)
 DT = 0.016
 
+# solo hacer colision si las particulas estan a menos de X pixeles
+COLLISION_THRESHOLD = 800
+
 # ------------------- Gestos -------------------
-MIN_DETECTION_CONFIDENCE = 0.78
-MIN_TRACKING_CONFIDENCE = 0.78
+MIN_DETECTION_CONFIDENCE = 0.75
+MIN_TRACKING_CONFIDENCE = 0.65
 
 # ------------------- UI -------------------
 FONT_SIZE = 22

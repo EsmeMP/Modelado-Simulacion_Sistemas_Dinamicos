@@ -71,30 +71,35 @@ def create_explosion(particles_list, x, y, count=35, intensity=1.0):
         particles_list.append(p)
 
 
-def handle_collisions(particles):
-    """Maneja colisiones elásticas entre particulas"""
-    for i in range(len(particles)):
-        for j in range(i + 1, len(particles)):
+def handle_collisions(particles, max_checks=700):
+    """colisiones optimizadas: solo cuando hay pocas particulas"""
+    n = len(particles)
+    if n > max_checks:
+        return  # se salta colisiones cuando hay muchas (prioridades en crecimiento)
+
+    for i in range(n):
+        for j in range(i + 1, n):   # se evita comprobar dos veces la misma pareja
             p1 = particles[i]
             p2 = particles[j]
 
             dx = p2.pos[0] - p1.pos[0]
             dy = p2.pos[1] - p1.pos[1]
             dist_sq = dx*dx + dy*dy
+            min_dist_sq = (p1.size + p2.size) ** 2
 
-            if dist_sq < (p1.size + p2.size)**2 and dist_sq > 0.001:
+            if dist_sq < min_dist_sq and dist_sq > 0.001:
                 dist = math.sqrt(dist_sq)
                 nx, ny = dx / dist, dy / dist
 
-                rv = (p2.vel - p1.vel) @ np.array([nx, ny])
+                rv = np.dot(p2.vel - p1.vel, np.array([nx, ny]))
                 if rv > 0:
                     continue
 
-                impulse = -1.75 * rv / 2.0
+                impulse = -1.6 * rv / 2.0
                 p1.vel -= impulse * np.array([nx, ny])
                 p2.vel += impulse * np.array([nx, ny])
 
-                p1.collision_timer = p2.collision_timer = 7
+                p1.collision_timer = p2.collision_timer = 5
 
 
 def update_bacteria_growth(particles, temp, humidity, microbe_key, max_particles):

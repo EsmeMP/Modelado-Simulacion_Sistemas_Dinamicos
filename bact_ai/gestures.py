@@ -16,7 +16,8 @@ class GestureController:
             static_image_mode=False,
             max_num_hands=2,
             min_detection_confidence=MIN_DETECTION_CONFIDENCE,
-            min_tracking_confidence=MIN_TRACKING_CONFIDENCE
+            min_tracking_confidence=MIN_TRACKING_CONFIDENCE,
+            model_complexity=0
         )
         self.mp_draw = mp.solutions.drawing_utils
         self.cap = cv2.VideoCapture(0)

@@ -1,36 +1,34 @@
-# Archivo principal (solo inicia el juego y el loop)
-
 # ========================
-# MAIN.PY - GestBact AI - Simulador de Bacterias con Gestos
+# MAIN.PY - GestBact AI (Versión Completa y Corregida)
 # ========================
 
 import pygame
 import sys
 import numpy as np
-import random
 import cv2
 from collections import deque
+import random
 
 # Importamos nuestros módulos
 from config import *
-from microbes import get_microbe_data, get_all_microbes
+from microbes import get_microbe_data
 from simulation import Particle, create_explosion, handle_collisions, update_bacteria_growth
 from gestures import GestureController
-
+from ui import Slider, PopulationGraph, draw_ui
 
 # ========================
-# inicializacion
+# INICIALIZACIÓN
 # ========================
-pygame.init()
 screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.RESIZABLE)
 pygame.display.set_caption("GestBact AI - Simulador de Bacterias y Virus con Gestos")
 clock = pygame.time.Clock()
 
-# variables de simulacion
+# Partículas iniciales
 particles = [Particle(random.randint(80, WIDTH-80), 
                      random.randint(80, HEIGHT-150)) 
              for _ in range(INITIAL_PARTICLES)]
 
+# Parámetros de simulación
 temp = 25.0
 humidity = 50.0
 current_microbe = "E. coli"
@@ -40,17 +38,22 @@ paused = False
 show_trails = True
 enable_collisions = True
 
-# historia para grafica
-population_history = deque(maxlen=400)
-energy_history = deque(maxlen=400)
+# Componentes de UI
+temp_slider = Slider(450, 65, 280, 0, 55, "Temperatura (°C)", YELLOW)
+hum_slider = Slider(450, 115, 280, 10, 100, "Humedad (%)", CYAN)
+population_graph = PopulationGraph(780, 65, 460, 180)
 
-# controlador de gestos
+# Controlador de gestos
 gesture_controller = GestureController()
 
+# Variables auxiliares
 running = True
 gesture_text = "Esperando manos..."
+last_day_time = 0
+DAY_COOLDOWN = 800  # milisegundos entre +1 día
 
-print("GestBact AI iniciado - Usa tus manos para controlar la simulación!")
+print("GestBact AI iniciado correctamente!")
+print("Usa tus manos para controlar temperatura, humedad y microorganismos.")
 
 # ========================
 # BUCLE PRINCIPAL
@@ -76,15 +79,15 @@ while running:
                                     random.randint(80, current_h-150)) 
                             for _ in range(INITIAL_PARTICLES)]
                 simulated_days = 0
-                population_history.clear()
+                population_graph.history.clear()
+            if event.key == pygame.K_b:
+                is_bacteria_mode = not is_bacteria_mode
             if event.key == pygame.K_t:
                 show_trails = not show_trails
             if event.key == pygame.K_c:
                 enable_collisions = not enable_collisions
-            if event.key == pygame.K_b:
-                is_bacteria_mode = not is_bacteria_mode
 
-    # ------------------- Captura de gestos -------------------
+    # ------------------- Procesar gestos con la cámara -------------------
     frame, result = gesture_controller.get_frame()
     if frame is None:
         break
@@ -98,6 +101,10 @@ while running:
         hand_forces, vortex_centers, temp, humidity, current_microbe, gesture_text = \
             gesture_controller.process_gestures(result, current_w, current_h, temp, humidity, current_microbe)
 
+    # Actualizar sliders
+    temp_slider.update(temp)
+    hum_slider.update(humidity)
+
     # ------------------- Actualizar simulación -------------------
     if not paused:
         total_ke = 0.0
@@ -105,30 +112,30 @@ while running:
         for p in particles[:]:
             total_force = np.zeros(2)
 
-            # fuerza de las manos
+            # Fuerzas generadas por las manos
             for hand_pos, is_attract, strength in hand_forces:
                 direction = hand_pos - p.pos
                 dist = np.linalg.norm(direction)
                 if dist > 15:
                     direction /= dist
-                    force_mag = (12000 + strength * 18000) / (dist**2 + 80)
+                    force_mag = (12500 + strength * 19000) / (dist**2 + 80)
                     force = direction * force_mag
                     if not is_attract:
                         force = -force
                     total_force += force
-                    p.glow = max(p.glow, 0.85)
+                    p.glow = max(p.glow, 0.9)
 
-            # vortices
+            # Vórtices
             for v_pos in vortex_centers:
                 direction = v_pos - p.pos
                 dist = np.linalg.norm(direction)
                 if dist > 10:
                     perpendicular = np.array([-direction[1], direction[0]])
-                    p.vel += perpendicular * (750 / (dist + 35))
+                    p.vel += perpendicular * (780 / (dist + 30))
 
             p.update(total_force, dt)
 
-            # rebote en bordes
+            # Rebote en los bordes
             if p.pos[0] < 0 or p.pos[0] > current_w:
                 p.vel[0] *= -0.82
                 p.pos[0] = np.clip(p.pos[0], 5, current_w - 5)
@@ -138,76 +145,68 @@ while running:
 
             total_ke += 0.5 * np.dot(p.vel, p.vel)
 
-        # actualizar crecimiento bacteriano
+        # Crecimiento de bacterias (solo si el modo está activado)
         if is_bacteria_mode:
             update_bacteria_growth(particles, temp, humidity, current_microbe, MAX_PARTICLES)
 
-        # colisiones
+        # Colisiones
         if enable_collisions and len(particles) < 950:
             handle_collisions(particles)
 
-        # guarda datos para grafica
-        population_history.append(len(particles))
-        energy_history.append(total_ke)
+        # Actualizar gráfica
+        population_graph.update(len(particles))
 
-    # ------------------- Dibujar -------------------
+    # ------------------- +1 Día con gesto -------------------
+    current_time = pygame.time.get_ticks()
+    if "¡+1 Día" in gesture_text and current_time - last_day_time > DAY_COOLDOWN:
+        simulated_days = min(simulated_days + 1, 30)
+        last_day_time = current_time
+        # Feedback visual
+        if particles:
+            cx = current_w // 2
+            cy = current_h // 2
+            create_explosion(particles, cx, cy, count=25, intensity=0.7)
+
+    # ========================
+    # DIBUJAR TODO
+    # ========================
     screen.fill(BLACK)
 
-    # Trails
-    if show_trails:
+    # Trails optimizados
+    if show_trails and len(particles) < 900:   # Solo trails cuando no este muy cargado
         for p in particles:
-            alpha = min(45, int(30 * (np.linalg.norm(p.vel) / 220)))
-            trail_color = (*p.color[:3], alpha)
-            pygame.draw.circle(screen, trail_color, (int(p.pos[0]), int(p.pos[1])), 4)
+            speed = np.linalg.norm(p.vel)
+            if speed > 15:   # Solo partículas que se mueven
+                alpha = min(40, int(25 * (speed / 200)))
+                trail_color = (*p.color[:3], alpha)
+                pygame.draw.circle(screen, trail_color, (int(p.pos[0]), int(p.pos[1])), 3)
 
-    # Dibujar particulas
+    # Partículas principales
     for p in particles:
         p.draw(screen)
 
-    # informacion en pantalla
-    microbe_data = get_microbe_data(current_microbe)
-    microbe_name = microbe_data["name"] if microbe_data else current_microbe
+    # Interfaz completa
+    draw_ui(screen, temp, humidity, current_microbe, simulated_days, 
+            is_bacteria_mode, particles, population_graph, temp_slider, hum_slider)
 
-    texts = [
-        ("GestBact AI - Simulador de Microorganismos", big_font, WHITE, (current_w//2 - 280, 15)),
-        (f"Gestos: {gesture_text}", font, PURPLE, (INFO_X, INFO_Y_START)),
-        (f"Microorganismo: {microbe_name}", font, microbe_data["color"] if microbe_data else GREEN, (INFO_X, INFO_Y_START + LINE_SPACING)),
-        (f"Temperatura: {temp:.1f}°C", font, YELLOW, (INFO_X, INFO_Y_START + LINE_SPACING*2)),
-        (f"Humedad: {humidity:.0f}%", font, CYAN, (INFO_X, INFO_Y_START + LINE_SPACING*3)),
-        (f"Días simulados: {simulated_days}", font, ORANGE, (INFO_X, INFO_Y_START + LINE_SPACING*4)),
-        (f"Partículas: {len(particles)}", font, WHITE, (INFO_X, INFO_Y_START + LINE_SPACING*5)),
-        (f"Modo: {'BACTERIAS ACTIVAS' if is_bacteria_mode else 'Física normal'}", 
-         font, GREEN if is_bacteria_mode else CYAN, (INFO_X, INFO_Y_START + LINE_SPACING*6)),
-    ]
-
-    for text, fnt, color, pos in texts:
-        screen.blit(fnt.render(text, True, color), pos)
-
-    # Instrucciones rapidas
-    controls = [
-        "Controles:",
-        "• 1 dedo (izq) = Temperatura   |   1 dedo (der) = Humedad",
-        "• Mano abierta + Pulgar = Cambiar microbio",
-        "• Pulgar arriba = +1 Día",
-        "• 3 dedos = Activar/Desactivar bacterias",
-        "• Espacio = Pausar   |   R = Reiniciar",
-    ]
-
-    for i, line in enumerate(controls):
-        screen.blit(font.render(line, True, LIGHT_GRAY), (INFO_X, current_h - 140 + i*22))
+    # Mostrar gesto actual más grande si es importante
+    if "Microbio" in gesture_text or "Temperatura" in gesture_text or "Humedad" in gesture_text:
+        temp_font = pygame.font.SysFont("Arial", 28)
+        gesture_surf = temp_font.render(gesture_text, True, PURPLE)
+        screen.blit(gesture_surf, (current_w//2 - gesture_surf.get_width()//2, 25))
 
     pygame.display.flip()
 
-    # Mostrar camara (opcional)
+    # Ventana de cámara
     if frame is not None:
-        cv2.putText(frame, gesture_text, (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 255, 255), 3)
+        cv2.putText(frame, gesture_text, (20, 60), cv2.FONT_HERSHEY_SIMPLEX, 1.3, (0, 255, 255), 3)
         cv2.imshow("Camara - GestBact AI", frame)
 
-    if cv2.waitKey(1) == 27:  # ESC para salir
+    if cv2.waitKey(1) == 27:   # ESC para salir
         running = False
 
 # ========================
-# finalizacion
+# CERRAR TODO
 # ========================
 gesture_controller.release()
 cv2.destroyAllWindows()
