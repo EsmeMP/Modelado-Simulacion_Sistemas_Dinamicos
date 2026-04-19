@@ -11,7 +11,7 @@ import random
 
 # Importamos nuestros módulos
 from config import *
-from microbes import get_microbe_data
+from microbes import get_all_microbes
 from simulation import Particle, create_explosion, handle_collisions, update_bacteria_growth
 from gestures import GestureController
 from ui import Slider, PopulationGraph, draw_ui
@@ -62,7 +62,7 @@ while running:
     dt = clock.tick(FPS) / 1000.0
     current_w, current_h = screen.get_size()
 
-    # ------------------- Eventos de teclado -------------------
+        # ------------------- Eventos de teclado -------------------
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
@@ -73,19 +73,36 @@ while running:
         elif event.type == pygame.KEYDOWN:
             if event.key == pygame.K_SPACE:
                 paused = not paused
+
             if event.key == pygame.K_r:
                 particles.clear()
-                particles = [Particle(random.randint(80, current_w-80), 
-                                    random.randint(80, current_h-150)) 
+                particles = [Particle(random.randint(80, current_w-80),
+                                    random.randint(80, current_h-150))
                             for _ in range(INITIAL_PARTICLES)]
                 simulated_days = 0
                 population_graph.history.clear()
+
             if event.key == pygame.K_b:
                 is_bacteria_mode = not is_bacteria_mode
+
             if event.key == pygame.K_t:
                 show_trails = not show_trails
+
             if event.key == pygame.K_c:
                 enable_collisions = not enable_collisions
+
+            # === CAMBIO DE MICROBIO CON TECLAS ===
+            if event.key == pygame.K_RIGHT:   # Flecha derecha → Siguiente microbio
+                keys = get_all_microbes() 
+                idx = keys.index(current_microbe)
+                current_microbe = keys[(idx + 1) % len(keys)]
+                gesture_text = f"Microbio: {current_microbe}"
+
+            elif event.key == pygame.K_LEFT:  # Flecha izquierda → Microbio anterior
+                keys = get_all_microbes()    
+                idx = keys.index(current_microbe)
+                current_microbe = keys[(idx - 1) % len(keys)]
+                gesture_text = f"Microbio: {current_microbe}"
 
     # ------------------- Procesar gestos con la cámara -------------------
     frame, result = gesture_controller.get_frame()

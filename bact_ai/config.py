@@ -35,8 +35,8 @@ DT = 0.016
 COLLISION_THRESHOLD = 800
 
 # ------------------- Gestos -------------------
-MIN_DETECTION_CONFIDENCE = 0.75
-MIN_TRACKING_CONFIDENCE = 0.65
+MIN_DETECTION_CONFIDENCE = 0.70
+MIN_TRACKING_CONFIDENCE = 0.60
 
 # ------------------- UI -------------------
 FONT_SIZE = 22
