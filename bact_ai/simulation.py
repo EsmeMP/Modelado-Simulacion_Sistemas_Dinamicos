@@ -1,6 +1,6 @@
-
-# SIMULATION.PY - logica de particulas y crecimiento bacteriano
-# =========================
+# ========================
+# SIMULATION.PY - Lógica de partículas y crecimiento con 4 factores
+# ========================
 
 import pygame
 import math
@@ -19,10 +19,10 @@ class Particle:
         self.collision_timer = 0
         self.glow = 0.0
 
-        # config segun microbio
+        # Configuración según microbio
         data = get_microbe_data(microbe_key)
         self.color = data["color"] if data and is_bacteria else CYAN
-        self.size = 5.5 if is_bacteria else 4.5
+        self.size = 5.8 if is_bacteria else 4.5
         self.is_bacteria = is_bacteria
         self.microbe_key = microbe_key
 
@@ -46,7 +46,7 @@ class Particle:
         if self.glow > 0.08:
             glow_size = int(self.size * 2.4)
             glow_surf = pygame.Surface((glow_size*2, glow_size*2), pygame.SRCALPHA)
-            alpha = int(45 * self.glow)
+            alpha = int(48 * self.glow)
             pygame.draw.circle(glow_surf, (*color[:3], alpha), (glow_size, glow_size), glow_size)
             surface.blit(glow_surf, (int(self.pos[0]) - glow_size, int(self.pos[1]) - glow_size))
 
@@ -59,26 +59,26 @@ class Particle:
 # ========================
 
 def create_explosion(particles_list, x, y, count=35, intensity=1.0):
-    """Crea partículas de explosión con mucho brillo"""
+    """Crea partículas de explosión con brillo"""
     for _ in range(count):
         p = Particle(x, y, is_bacteria=False)
         p.vel = np.array([
             random.uniform(-300, 300) * intensity,
             random.uniform(-300, 300) * intensity
         ])
-        p.glow = 1.2
-        p.size = random.uniform(3.5, 7.5)
+        p.glow = 1.3
+        p.size = random.uniform(3.5, 8.0)
         particles_list.append(p)
 
 
 def handle_collisions(particles, max_checks=700):
-    """colisiones optimizadas: solo cuando hay pocas particulas"""
+    """Colisiones optimizadas"""
     n = len(particles)
     if n > max_checks:
-        return  # se salta colisiones cuando hay muchas (prioridades en crecimiento)
+        return
 
     for i in range(n):
-        for j in range(i + 1, n):   # se evita comprobar dos veces la misma pareja
+        for j in range(i + 1, n):
             p1 = particles[i]
             p2 = particles[j]
 
@@ -95,28 +95,40 @@ def handle_collisions(particles, max_checks=700):
                 if rv > 0:
                     continue
 
-                impulse = -1.6 * rv / 2.0
+                impulse = -1.65 * rv / 2.0
                 p1.vel -= impulse * np.array([nx, ny])
                 p2.vel += impulse * np.array([nx, ny])
 
-                p1.collision_timer = p2.collision_timer = 5
+                p1.collision_timer = p2.collision_timer = 6
 
 
-def update_bacteria_growth(particles, temp, humidity, microbe_key, max_particles):
-    """añade nuevas bacterias segun tasa de crecimiento realista"""
-    if not particles:
+def update_bacteria_growth(particles, temp, humidity, ph, light, microbe_key, max_particles):
+    """
+    Actualiza el crecimiento de bacterias usando los 4 factores:
+    Temperatura, Humedad, pH e Iluminación
+    """
+    if not particles or len(particles) >= max_particles:
         return
 
-    growth_rate = calculate_growth_rate(temp, humidity, microbe_key)
+    # Calcula tasa de crecimiento con los 4 factores
+    growth_rate = calculate_growth_rate(temp, humidity, ph, light, microbe_key)
 
-    # probabilidad por particula bacteriana
+    # Limitamos el crecimiento máximo por frame para evitar explosión instantánea
+    max_new_per_frame = 12
+
+    new_particles = 0
+
     for p in particles:
-        if p.is_bacteria and random.random() < growth_rate:
-            if len(particles) >= max_particles:
+        if not p.is_bacteria:
+            continue
+
+        if random.random() < growth_rate:
+            if len(particles) >= max_particles or new_particles >= max_new_per_frame:
                 break
+                
             # Crear bacteria hija cerca de la madre
-            offset_x = random.uniform(-22, 22)
-            offset_y = random.uniform(-22, 22)
+            offset_x = random.uniform(-25, 25)
+            offset_y = random.uniform(-25, 25)
             
             new_p = Particle(
                 p.pos[0] + offset_x,
@@ -125,3 +137,4 @@ def update_bacteria_growth(particles, temp, humidity, microbe_key, max_particles
                 microbe_key=microbe_key
             )
             particles.append(new_p)
+            new_particles += 1

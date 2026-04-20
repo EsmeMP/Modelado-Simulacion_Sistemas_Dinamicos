@@ -1,17 +1,17 @@
 # ========================
-# MAIN.PY - GestBact AI (Versión Completa y Corregida)
+# MAIN.PY - GestBact AI con 4 Factores (Temp, Humedad, pH, Luz)
 # ========================
 
 import pygame
 import sys
 import numpy as np
 import cv2
-from collections import deque
 import random
+from collections import deque
 
-# Importamos nuestros módulos
+# Importamos módulos
 from config import *
-from microbes import get_all_microbes
+from microbes import get_all_microbes, get_microbe_data
 from simulation import Particle, create_explosion, handle_collisions, update_bacteria_growth
 from gestures import GestureController
 from ui import Slider, PopulationGraph, draw_ui
@@ -20,17 +20,20 @@ from ui import Slider, PopulationGraph, draw_ui
 # INICIALIZACIÓN
 # ========================
 screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.RESIZABLE)
-pygame.display.set_caption("GestBact AI - Simulador de Bacterias y Virus con Gestos")
+pygame.display.set_caption("GestBact AI - Simulador con 4 Factores")
 clock = pygame.time.Clock()
 
-# Partículas iniciales
+# Variables de simulación
 particles = [Particle(random.randint(80, WIDTH-80), 
                      random.randint(80, HEIGHT-150)) 
              for _ in range(INITIAL_PARTICLES)]
 
-# Parámetros de simulación
+# === 4 FACTORES ===
 temp = 25.0
 humidity = 50.0
+ph = 7.0          # Nuevo
+light = 30.0      # Iluminación / UV (0% = oscuridad, 100% = luz fuerte)
+
 current_microbe = "E. coli"
 simulated_days = 0
 is_bacteria_mode = False
@@ -38,9 +41,12 @@ paused = False
 show_trails = True
 enable_collisions = True
 
-# Componentes de UI
-temp_slider = Slider(450, 65, 280, 0, 55, "Temperatura (°C)", YELLOW)
-hum_slider = Slider(450, 115, 280, 10, 100, "Humedad (%)", CYAN)
+# Componentes UI
+temp_slider = Slider(450, 65, 280, 0, 60, "Temperatura (°C)", YELLOW)
+hum_slider = Slider(450, 115, 280, 5, 100, "Humedad (%)", CYAN)
+ph_slider = Slider(450, 165, 280, 4.0, 9.0, "pH", PURPLE)           # Nuevo
+light_slider = Slider(450, 215, 280, 0, 100, "Iluminación UV (%)", ORANGE)  # Nuevo
+
 population_graph = PopulationGraph(780, 65, 460, 180)
 
 # Controlador de gestos
@@ -50,10 +56,9 @@ gesture_controller = GestureController()
 running = True
 gesture_text = "Esperando manos..."
 last_day_time = 0
-DAY_COOLDOWN = 800  # milisegundos entre +1 día
+DAY_COOLDOWN = 800
 
-print("GestBact AI iniciado correctamente!")
-print("Usa tus manos para controlar temperatura, humedad y microorganismos.")
+print("GestBact AI iniciado con 4 factores científicos!")
 
 # ========================
 # BUCLE PRINCIPAL
@@ -62,7 +67,7 @@ while running:
     dt = clock.tick(FPS) / 1000.0
     current_w, current_h = screen.get_size()
 
-        # ------------------- Eventos de teclado -------------------
+    # ------------------- Eventos de teclado -------------------
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
@@ -91,20 +96,20 @@ while running:
             if event.key == pygame.K_c:
                 enable_collisions = not enable_collisions
 
-            # === CAMBIO DE MICROBIO CON TECLAS ===
-            if event.key == pygame.K_RIGHT:   # Flecha derecha → Siguiente microbio
-                keys = get_all_microbes() 
+            # Cambio de microbio con flechas
+            if event.key == pygame.K_RIGHT:
+                keys = get_all_microbes()
                 idx = keys.index(current_microbe)
                 current_microbe = keys[(idx + 1) % len(keys)]
                 gesture_text = f"Microbio: {current_microbe}"
 
-            elif event.key == pygame.K_LEFT:  # Flecha izquierda → Microbio anterior
-                keys = get_all_microbes()    
+            elif event.key == pygame.K_LEFT:
+                keys = get_all_microbes()
                 idx = keys.index(current_microbe)
                 current_microbe = keys[(idx - 1) % len(keys)]
                 gesture_text = f"Microbio: {current_microbe}"
 
-    # ------------------- Procesar gestos con la cámara -------------------
+    # ------------------- Procesar gestos -------------------
     frame, result = gesture_controller.get_frame()
     if frame is None:
         break
@@ -121,6 +126,8 @@ while running:
     # Actualizar sliders
     temp_slider.update(temp)
     hum_slider.update(humidity)
+    ph_slider.update(ph)
+    light_slider.update(light)
 
     # ------------------- Actualizar simulación -------------------
     if not paused:
@@ -129,7 +136,7 @@ while running:
         for p in particles[:]:
             total_force = np.zeros(2)
 
-            # Fuerzas generadas por las manos
+            # Fuerzas de las manos
             for hand_pos, is_attract, strength in hand_forces:
                 direction = hand_pos - p.pos
                 dist = np.linalg.norm(direction)
@@ -152,7 +159,7 @@ while running:
 
             p.update(total_force, dt)
 
-            # Rebote en los bordes
+            # Rebote en bordes
             if p.pos[0] < 0 or p.pos[0] > current_w:
                 p.vel[0] *= -0.82
                 p.pos[0] = np.clip(p.pos[0], 5, current_w - 5)
@@ -162,9 +169,9 @@ while running:
 
             total_ke += 0.5 * np.dot(p.vel, p.vel)
 
-        # Crecimiento de bacterias (solo si el modo está activado)
+        # === CRECIMIENTO CON 4 FACTORES ===
         if is_bacteria_mode:
-            update_bacteria_growth(particles, temp, humidity, current_microbe, MAX_PARTICLES)
+            update_bacteria_growth(particles, temp, humidity, ph, light, current_microbe, MAX_PARTICLES)
 
         # Colisiones
         if enable_collisions and len(particles) < 950:
@@ -178,22 +185,19 @@ while running:
     if "¡+1 Día" in gesture_text and current_time - last_day_time > DAY_COOLDOWN:
         simulated_days = min(simulated_days + 1, 30)
         last_day_time = current_time
-        # Feedback visual
         if particles:
-            cx = current_w // 2
-            cy = current_h // 2
-            create_explosion(particles, cx, cy, count=25, intensity=0.7)
+            create_explosion(particles, current_w//2, current_h//2, count=25, intensity=0.7)
 
-    # ========================
-    # DIBUJAR TODO
+        # ========================
+    # DIBUJAR
     # ========================
     screen.fill(BLACK)
 
     # Trails optimizados
-    if show_trails and len(particles) < 900:   # Solo trails cuando no este muy cargado
+    if show_trails and len(particles) < 900:
         for p in particles:
             speed = np.linalg.norm(p.vel)
-            if speed > 15:   # Solo partículas que se mueven
+            if speed > 15:
                 alpha = min(40, int(25 * (speed / 200)))
                 trail_color = (*p.color[:3], alpha)
                 pygame.draw.circle(screen, trail_color, (int(p.pos[0]), int(p.pos[1])), 3)
@@ -202,28 +206,28 @@ while running:
     for p in particles:
         p.draw(screen)
 
-    # Interfaz completa
-    draw_ui(screen, temp, humidity, current_microbe, simulated_days, 
-            is_bacteria_mode, particles, population_graph, temp_slider, hum_slider)
+    # === UI COMPLETA CON 4 FACTORES ===
+    draw_ui(screen, temp, humidity, ph, light, current_microbe, simulated_days, 
+            is_bacteria_mode, particles, population_graph, 
+            temp_slider, hum_slider, ph_slider, light_slider)
 
-    # Mostrar gesto actual más grande si es importante
-    if "Microbio" in gesture_text or "Temperatura" in gesture_text or "Humedad" in gesture_text:
+    # Mostrar gesto actual más grande
+    if any(word in gesture_text for word in ["Temp", "Humedad", "pH", "Iluminación", "Microbio"]):
         temp_font = pygame.font.SysFont("Arial", 28)
         gesture_surf = temp_font.render(gesture_text, True, PURPLE)
         screen.blit(gesture_surf, (current_w//2 - gesture_surf.get_width()//2, 25))
 
     pygame.display.flip()
-
     # Ventana de cámara
     if frame is not None:
         cv2.putText(frame, gesture_text, (20, 60), cv2.FONT_HERSHEY_SIMPLEX, 1.3, (0, 255, 255), 3)
         cv2.imshow("Camara - GestBact AI", frame)
 
-    if cv2.waitKey(1) == 27:   # ESC para salir
+    if cv2.waitKey(1) == 27:
         running = False
 
 # ========================
-# CERRAR TODO
+# FINALIZACIÓN
 # ========================
 gesture_controller.release()
 cv2.destroyAllWindows()
