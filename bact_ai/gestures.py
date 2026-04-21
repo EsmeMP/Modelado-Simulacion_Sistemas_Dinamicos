@@ -5,6 +5,7 @@
 import cv2
 import mediapipe as mp
 import numpy as np
+import pygame
 from config import *
 from microbes import get_all_microbes
 
@@ -53,15 +54,15 @@ class GestureController:
                 )
         return frame
 
-    def process_gestures(self, result, current_w, current_h, temp, humidity, current_microbe):
+    def process_gestures(self, result, current_w, current_h, temp, humidity, ph, light, current_microbe):
         hand_forces = []
         vortex_centers = []
         gesture_text = "Esperando manos..."
-        
+
         current_time = pygame.time.get_ticks()
-        
+
         if not result.multi_hand_landmarks:
-            return hand_forces, vortex_centers, temp, humidity, current_microbe, gesture_text
+            return hand_forces, vortex_centers, temp, humidity, ph, light, current_microbe, gesture_text
 
         for hand_landmarks in result.multi_hand_landmarks:
             palm = hand_landmarks.landmark[0]
@@ -69,43 +70,52 @@ class GestureController:
             hy = int(palm.y * current_h)
             hand_pos = np.array([hx, hy], dtype=float)
 
-            # Conteo de dedos más estable
-            dedos_arriba = sum(1 for i in [8,12,16,20] 
-                             if hand_landmarks.landmark[i].y < hand_landmarks.landmark[i-2].y - 0.02)
-            
+            dedos_arriba = sum(1 for i in [8, 12, 16, 20]
+                            if hand_landmarks.landmark[i].y < hand_landmarks.landmark[i-2].y - 0.02)
+
             thumb_up = hand_landmarks.landmark[4].y < hand_landmarks.landmark[2].y - 0.08
             dist_thumb_index = abs(hand_landmarks.landmark[4].x - hand_landmarks.landmark[8].x) * 130
 
-            # ======================== GESTOS ========================
-            if dedos_arriba == 1:                      # índice → Temp / Humedad
-                adjustment = (dist_thumb_index - 30) * 0.11
-                if hx < current_w // 2:                # Izquierda de la pantalla = Temperatura
-                    temp = np.clip(temp + adjustment, 0, 60)
-                    gesture_text = f"Temp: {temp:.1f}°C"
-                else:                                  # Derecha = Humedad
-                    humidity = np.clip(humidity + adjustment * 1.7, 5, 100)
-                    gesture_text = f"Humedad: {humidity:.0f}%"
+            # =================== GESTOS ===================
 
-            elif dedos_arriba == 2:                    # Victory → Vórtice
+            if dedos_arriba == 1:
+                # Posición Y normalizada: arriba = 1.0, abajo = 0.0
+                normalized_y = 1.0 - (hy / current_h)
+
+                if hx < current_w // 2:          # mano izquierda → Temperatura
+                    temp = np.clip(normalized_y * 60, 0, 60)
+                    gesture_text = f"🌡 Temp: {temp:.1f}°C"
+                else:                             # mano derecha → Humedad
+                    humidity = np.clip(normalized_y * 95 + 5, 5, 100)
+                    gesture_text = f"💧 Humedad: {humidity:.0f}%"
+
+            elif dedos_arriba == 2:                     # 2 dedos → Vórtice
                 vortex_centers.append(hand_pos)
-                gesture_text = "¡VÓRTICE ACTIVADO!"
+                gesture_text = "VÓRTICE ACTIVADO"
 
-            elif thumb_up and dedos_arriba <= 1:       # Pulgar arriba → +1 Día
+            elif dedos_arriba == 3:               # 3 dedos → pH
+                normalized_y = 1.0 - (hy / current_h)
+                ph = np.clip(normalized_y * 5 + 4, 4.0, 9.0)   # mapea 0-1 → 4.0-9.0
+                gesture_text = f"⚗ pH: {ph:.2f}  (sube/baja mano)"
+
+            elif dedos_arriba == 4:                     # 4 dedos → Luz UV
+                # altura de la mano controla la luz: arriba = más luz
+                normalized_y = 1.0 - (hy / current_h)
+                light = np.clip(normalized_y * 100, 0, 100)
+                gesture_text = f"☀ Luz UV: {light:.0f}%  (sube/baja mano)"
+
+            elif thumb_up and dedos_arriba <= 1:        # Pulgar → +1 Día
                 if current_time - self.last_gesture_time > self.gesture_cooldown:
                     gesture_text = "¡+1 Día simulado!"
                     self.last_gesture_time = current_time
 
-            elif dedos_arriba == 0:                    # Puño cerrado → Repulsión
-                gesture_text = "Repulsión + Onda"
+            elif dedos_arriba == 0:                     # Puño → Repulsión
+                gesture_text = "Repulsión activa"
 
-            elif dedos_arriba == 3:                    # 3 dedos → Toggle bacterias
-                gesture_text = "3 dedos → Toggle Bacterias (o tecla B)"
-
-            # Fuerza de la mano (atracción por defecto)
             is_attract = dedos_arriba >= 1
             hand_forces.append((hand_pos, is_attract, dist_thumb_index))
 
-        return hand_forces, vortex_centers, temp, humidity, current_microbe, gesture_text
+        return hand_forces, vortex_centers, temp, humidity, ph, light, current_microbe, gesture_text
 
     def release(self):
         """Libera la camara"""

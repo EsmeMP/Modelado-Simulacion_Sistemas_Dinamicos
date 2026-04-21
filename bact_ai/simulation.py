@@ -18,6 +18,7 @@ class Particle:
         self.age = 0
         self.collision_timer = 0
         self.glow = 0.0
+        self.stress_timer = 0 
 
         # Configuración según microbio
         data = get_microbe_data(microbe_key)
@@ -38,9 +39,17 @@ class Particle:
             self.glow *= 0.92
 
     def draw(self, surface):
-        color = RED if self.state == "infected" else self.color
-        if self.collision_timer > 0:
+    # Estado dead no se dibuja
+        if self.state == "dead":
+            return
+
+        # Color según estado
+        if self.state == "stressed":
+            color = ORANGE
+        elif self.collision_timer > 0:
             color = YELLOW
+        else:
+            color = self.color
 
         # Glow effect
         if self.glow > 0.08:
@@ -50,9 +59,7 @@ class Particle:
             pygame.draw.circle(glow_surf, (*color[:3], alpha), (glow_size, glow_size), glow_size)
             surface.blit(glow_surf, (int(self.pos[0]) - glow_size, int(self.pos[1]) - glow_size))
 
-        # Partícula principal
         pygame.draw.circle(surface, color, (int(self.pos[0]), int(self.pos[1])), int(self.size))
-
 
 # ========================
 # FUNCIONES DE SIMULACIÓN
@@ -103,38 +110,49 @@ def handle_collisions(particles, max_checks=700):
 
 
 def update_bacteria_growth(particles, temp, humidity, ph, light, microbe_key, max_particles):
-    """
-    Actualiza el crecimiento de bacterias usando los 4 factores:
-    Temperatura, Humedad, pH e Iluminación
-    """
-    if not particles or len(particles) >= max_particles:
+    if not particles:
         return
 
-    # Calcula tasa de crecimiento con los 4 factores
     growth_rate = calculate_growth_rate(temp, humidity, ph, light, microbe_key)
+    data = get_microbe_data(microbe_key)
+    if not data:
+        return
 
-    # Limitamos el crecimiento máximo por frame para evitar explosión instantánea
-    max_new_per_frame = 12
-
-    new_particles = 0
+    new_bacteria = []
 
     for p in particles:
         if not p.is_bacteria:
             continue
 
-        if random.random() < growth_rate:
-            if len(particles) >= max_particles or new_particles >= max_new_per_frame:
-                break
-                
-            # Crear bacteria hija cerca de la madre
-            offset_x = random.uniform(-25, 25)
-            offset_y = random.uniform(-25, 25)
-            
-            new_p = Particle(
-                p.pos[0] + offset_x,
-                p.pos[1] + offset_y,
-                is_bacteria=True,
-                microbe_key=microbe_key
-            )
-            particles.append(new_p)
-            new_particles += 1
+        # Verificar condiciones límite
+        temp_ok = data["temp_range"][0] <= temp <= data["temp_range"][1]
+        ph_ok   = data["ph_range"][0]   <= ph   <= data["ph_range"][1]
+
+        if not temp_ok or not ph_ok:
+            p.stress_timer += 1
+            p.state = "stressed"
+        else:
+            p.stress_timer = max(0, p.stress_timer - 2)  # se recupera más rápido de lo que se estresa
+            if p.stress_timer == 0:
+                p.state = "healthy"
+
+        # Muere tras ~3 segundos en estrés continuo (180 frames a 60fps)
+        if p.stress_timer > 180:
+            p.state = "dead"
+            continue
+
+        # Solo se reproduce si está healthy y hay espacio
+        if p.state == "healthy":
+            if len(particles) + len(new_bacteria) < max_particles:
+                if len(new_bacteria) < 12:
+                    if random.random() < growth_rate:
+                        new_bacteria.append(Particle(
+                            p.pos[0] + random.uniform(-25, 25),
+                            p.pos[1] + random.uniform(-25, 25),
+                            is_bacteria=True,
+                            microbe_key=microbe_key
+                        ))
+
+    # Eliminar muertas y agregar nuevas
+    particles[:] = [p for p in particles if p.state != "dead"]
+    particles.extend(new_bacteria)

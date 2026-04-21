@@ -2,6 +2,11 @@
 # MICROBES.PY - Base de datos mejorada con múltiples factores
 # ========================
 
+import json, os
+
+CUSTOM_PATH = "data/custom_microbes.json"
+CUSTOM_PATH = os.path.join(os.path.dirname(__file__), "data", "custom_microbes.json")
+
 microbes_db = {
     "E. coli": {
         "name": "Escherichia coli",
@@ -76,6 +81,38 @@ def get_all_microbes():
 def get_microbe_data(key: str):
     return microbes_db.get(key)
 
+
+def load_custom_microbes():
+    """Carga bacterias custom del JSON y las mezcla con la DB"""
+    if os.path.exists(CUSTOM_PATH):
+        try:
+            with open(CUSTOM_PATH, "r") as f:
+                custom = json.load(f)
+            microbes_db.update(custom)
+            print(f"[microbes] {len(custom)} microbio(s) custom cargado(s)")
+        except Exception as e:
+            print(f"[microbes] Error al cargar custom_microbes.json: {e}")
+
+def save_custom_microbe(key, data):
+    """Guarda un nuevo microbio en el JSON"""
+    os.makedirs(os.path.dirname(CUSTOM_PATH), exist_ok=True)
+    existing = {}
+    if os.path.exists(CUSTOM_PATH):
+        try:
+            with open(CUSTOM_PATH, "r") as f:
+                existing = json.load(f)
+        except:
+            pass
+    existing[key] = data
+    microbes_db[key] = data          # también lo agrega en memoria inmediatamente
+    with open(CUSTOM_PATH, "w") as f:
+        json.dump(existing, f, indent=2, ensure_ascii=False)
+    print(f"[microbes] Microbio '{key}' guardado correctamente")
+
+# Se ejecuta al importar el módulo
+load_custom_microbes()
+
+
 def calculate_growth_rate(temp: float, humidity: float, ph: float, light: float, microbe_key: str) -> float:
     """
     Calcula tasa de crecimiento considerando 4 factores
@@ -97,9 +134,27 @@ def calculate_growth_rate(temp: float, humidity: float, ph: float, light: float,
     ph_factor = max(0.0, 1.0 - abs(ph - opt_ph) / 5.0)
 
     # Factor Luz (UV)
-    light_factor = 1.0 - (light * data["light_sensitivity"] * 0.9)
+    light_factor = max(0.0, 1.0 - (light/100.0) * data["light_sensitivity"])
 
     # Tasa final
     rate = data["base_rate"] * temp_factor * hum_factor * ph_factor * light_factor * 2.8
     
-    return max(0.008, min(0.13, rate))   # Limitamos entre 0.8% y 13% por frame
+    return max(0.008, min(0.13, rate))   # se limita entre 0.8% y 13% por frame
+
+def load_custom_microbes():
+    if os.path.exists(CUSTOM_PATH):
+        with open(CUSTOM_PATH) as f:
+            microbes_db.update(json.load(f))
+
+def save_custom_microbe(key, data):
+    os.makedirs("data", exist_ok=True)
+    existing = {}
+    if os.path.exists(CUSTOM_PATH):
+        with open(CUSTOM_PATH) as f:
+            existing = json.load(f)
+    existing[key] = data
+    with open(CUSTOM_PATH, "w") as f:
+        json.dump(existing, f, indent=2)
+
+# Llamar al cargar el módulo
+load_custom_microbes()
