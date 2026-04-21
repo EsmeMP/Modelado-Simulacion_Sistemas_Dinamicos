@@ -25,6 +25,8 @@ LIGHT_GRAY = (180, 180, 180)
 # ------------------- parametros de simulacion -------------------
 MAX_PARTICLES = 1200
 INITIAL_PARTICLES = 350
+INITIAL_NUTRIENTS = 100.0       
+MAX_NUTRIENTS = 100.0   
 
 # freno de velocidad
 DAMPING = 0.96 

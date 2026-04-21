@@ -1,5 +1,5 @@
 # ========================
-# MAIN.PY - GestBact AI con 4 Factores (Temp, Humedad, pH, Luz)
+# MAIN.PY - GestBact AI con 5 Factores (Temp, Humedad, pH, Luz, Nutrientes)
 # ========================
 
 import pygame
@@ -20,15 +20,15 @@ from ui import Slider, PopulationGraph, draw_ui, CustomMicrobeForm
 # INICIALIZACIÓN
 # ========================
 screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.RESIZABLE)
-pygame.display.set_caption("GestBact AI - Simulador con 4 Factores")
+pygame.display.set_caption("GestBact AI - Simulador con 5 Factores")
 clock = pygame.time.Clock()
 
 # === VARIABLES PRIMERO, partículas después ===
-# FIX: current_microbe debe existir antes de crear las partículas
-temp           = 25.0
-humidity       = 50.0
-ph             = 7.0
-light          = 30.0
+temp            = 25.0
+humidity        = 50.0
+ph              = 7.0
+light           = 30.0
+nutrients       = INITIAL_NUTRIENTS   # viene de config.py
 current_microbe = "E. coli"
 simulated_days  = 0
 paused          = False
@@ -47,18 +47,15 @@ particles = [
 ]
 
 # Componentes UI
-temp_slider  = Slider(450,  65, 280,  0,   60,  "Temperatura (°C)",   YELLOW)
-hum_slider   = Slider(450, 115, 280,  5,  100,  "Humedad (%)",         CYAN)
-ph_slider    = Slider(450, 165, 280,  4.0,  9.0, "pH",                 PURPLE)
-light_slider = Slider(450, 215, 280,  0,  100,  "Iluminación UV (%)",  ORANGE)
+temp_slider     = Slider(450,  65, 280,  0,    60,  "Temperatura (°C)",   YELLOW)
+hum_slider      = Slider(450, 115, 280,  5,   100,  "Humedad (%)",         CYAN)
+ph_slider       = Slider(450, 165, 280,  4.0,   9.0, "pH",                PURPLE)
+light_slider    = Slider(450, 215, 280,  0,   100,  "Iluminación UV (%)", ORANGE)
+nutrient_slider = Slider(450, 265, 280,  0,   100,  "Nutrientes (%)",     GREEN)
 
-population_graph = PopulationGraph(780, 65, 460, 180)
-
-# Controlador de gestos
+population_graph   = PopulationGraph(780, 65, 460, 180)
 gesture_controller = GestureController()
-
-# Formulario de bacteria custom
-custom_form = CustomMicrobeForm()
+custom_form        = CustomMicrobeForm()
 
 # Variables auxiliares
 running       = True
@@ -66,7 +63,7 @@ gesture_text  = "Esperando manos..."
 last_day_time = 0
 DAY_COOLDOWN  = 800
 
-print("GestBact AI iniciado con 4 factores científicos!")
+print("GestBact AI iniciado con 5 factores científicos!")
 
 # ========================
 # BUCLE PRINCIPAL
@@ -76,7 +73,6 @@ while running:
     current_w, current_h = screen.get_size()
 
     # ------------------- Eventos -------------------
-        # ------------------- Eventos -------------------
     for event in pygame.event.get():
 
         if event.type == pygame.QUIT:
@@ -85,27 +81,26 @@ while running:
         elif event.type == pygame.VIDEORESIZE:
             screen = pygame.display.set_mode((event.w, event.h), pygame.RESIZABLE)
 
-        # === 1. Manejo de sliders con mouse ===
-        for slider in (temp_slider, hum_slider, ph_slider, light_slider):
-            changed = slider.handle_event(event)
-            if changed:
-                temp     = temp_slider.value
-                humidity = hum_slider.value
-                ph       = ph_slider.value
-                light    = light_slider.value
+        # Sliders arrastrables con mouse
+        for slider in (temp_slider, hum_slider, ph_slider, light_slider, nutrient_slider):
+            if slider.handle_event(event):
+                temp      = temp_slider.value
+                humidity  = hum_slider.value
+                ph        = ph_slider.value
+                light     = light_slider.value
+                nutrients = nutrient_slider.value
 
-        # === 2. Manejo de teclas (solo si es un evento KEYDOWN) ===
+        # Teclado
         if event.type == pygame.KEYDOWN:
 
-            # Formulario custom tiene prioridad
+            # Formulario tiene prioridad sobre cualquier tecla
             if custom_form.active:
                 result_form = custom_form.handle_event(event)
                 if result_form:
                     key, data = result_form
                     current_microbe = key
-                continue  # No procesar otras teclas mientras el form está activo
+                continue
 
-            # Controles normales
             if event.key == pygame.K_SPACE:
                 paused = not paused
 
@@ -124,11 +119,18 @@ while running:
                 population_graph.history.clear()
 
             elif event.key == pygame.K_b:
+                # Antibiótico
                 for p in particles:
-                    if hasattr(p, 'is_bacteria') and p.is_bacteria:
+                    if p.is_bacteria:
                         p.state = "stressed"
                         p.stress_timer = 120
                 gesture_text = "¡Antibiótico aplicado!"
+
+            elif event.key == pygame.K_f:
+                # Reponer nutrientes
+                nutrients = MAX_NUTRIENTS
+                nutrient_slider.update(nutrients)
+                gesture_text = "¡Nutrientes repuestos al 100%!"
 
             elif event.key == pygame.K_t:
                 show_trails = not show_trails
@@ -139,7 +141,6 @@ while running:
             elif event.key == pygame.K_n:
                 custom_form.toggle()
 
-            # Cambio de microbio con flechas
             elif event.key == pygame.K_RIGHT:
                 keys = get_all_microbes()
                 idx = keys.index(current_microbe)
@@ -161,7 +162,6 @@ while running:
     vortex_centers = []
 
     if result and not custom_form.active:
-        # No procesar gestos si el formulario está abierto
         frame = gesture_controller.draw_landmarks(frame, result)
         hand_forces, vortex_centers, temp, humidity, ph, light, current_microbe, gesture_text = \
             gesture_controller.process_gestures(
@@ -174,6 +174,7 @@ while running:
     hum_slider.update(humidity)
     ph_slider.update(ph)
     light_slider.update(light)
+    # nutrient_slider NO se sincroniza desde gestos, solo desde consumo real y tecla F
 
     # ------------------- Actualizar simulación -------------------
     if not paused:
@@ -181,7 +182,6 @@ while running:
         for p in particles:
             total_force = np.zeros(2)
 
-            # Fuerzas de manos
             for hand_pos, is_attract, strength in hand_forces:
                 direction = hand_pos - p.pos
                 dist = np.linalg.norm(direction)
@@ -194,7 +194,6 @@ while running:
                     total_force += force
                     p.glow = max(p.glow, 0.9)
 
-            # FIX: vórtices ahora escalan con dt (antes era frame-rate dependiente)
             for v_pos in vortex_centers:
                 direction = v_pos - p.pos
                 dist = np.linalg.norm(direction)
@@ -204,7 +203,6 @@ while running:
 
             p.update(total_force, dt)
 
-            # Rebote en bordes
             if p.pos[0] < 0 or p.pos[0] > current_w:
                 p.vel[0] *= -0.82
                 p.pos[0] = np.clip(p.pos[0], 5, current_w - 5)
@@ -212,14 +210,17 @@ while running:
                 p.vel[1] *= -0.82
                 p.pos[1] = np.clip(p.pos[1], 5, current_h - 5)
 
-        # Crecimiento bacteriano con 4 factores
-        update_bacteria_growth(particles, temp, humidity, ph, light, current_microbe, MAX_PARTICLES)
+        # FIX: una sola llamada con firma correcta de 5 factores
+        nutrients = update_bacteria_growth(
+            particles, temp, humidity, ph, light, nutrients,
+            current_microbe, MAX_PARTICLES
+        )
+        # Reflejar el consumo real en el slider
+        nutrient_slider.update(nutrients)
 
-        # Colisiones
         if enable_collisions and len(particles) < 950:
             handle_collisions(particles)
 
-        # Actualizar gráfica
         population_graph.update(len(particles))
 
     # ------------------- +1 Día con gesto -------------------
@@ -245,32 +246,34 @@ while running:
                 pygame.draw.circle(trail_surf, (*p.color[:3], alpha), (3, 3), 3)
                 screen.blit(trail_surf, (int(p.pos[0]) - 3, int(p.pos[1]) - 3))
 
-    # Partículas
     for p in particles:
         p.draw(screen)
 
-    # UI completa — FIX: firma nueva sin is_bacteria_mode, particles completo
-    draw_ui(screen, temp, humidity, ph, light, current_microbe, simulated_days,
+    draw_ui(screen, temp, humidity, ph, light, nutrients, current_microbe, simulated_days,
             particles, population_graph,
-            temp_slider, hum_slider, ph_slider, light_slider)
+            temp_slider, hum_slider, ph_slider, light_slider, nutrient_slider)
 
     # Texto de gesto grande
-    if any(w in gesture_text for w in ["Temp", "Humedad", "pH", "Luz", "Microbio", "Antibiótico"]):
+    if any(w in gesture_text for w in ["Temp", "Humedad", "pH", "Luz", "Microbio", "Antibiótico", "Nutrientes"]):
         gesture_font = pygame.font.SysFont("Arial", 28)
         gesture_surf = gesture_font.render(gesture_text, True, PURPLE)
         screen.blit(gesture_surf, (current_w // 2 - gesture_surf.get_width() // 2, 25))
 
-    # Formulario custom
     custom_form.draw(screen)
 
-    # Mensaje de éxito tras guardar bacteria custom
-    if custom_form.success_msg:
-        success_surf = big_font.render(custom_form.success_msg, True, GREEN)
-        screen.blit(success_surf, (current_w // 2 - success_surf.get_width() // 2, current_h // 2))
+    # if custom_form.success_msg:
+    #     success_surf = big_font.render(custom_form.success_msg, True, GREEN)
+    #     screen.blit(success_surf, (current_w // 2 - success_surf.get_width() // 2, current_h // 2))
+    #     # Iniciar timer la primera vez
+    #     if custom_form.success_timer == 0:
+    #         custom_form.success_timer = pygame.time.get_ticks()
+    #     # Borrar después de 3 segundos
+    #     elif pygame.time.get_ticks() - custom_form.success_timer > 3000:
+    #         custom_form.success_msg = ""
+    #         custom_form.success_timer = 0
 
     pygame.display.flip()
 
-    # Ventana de cámara
     if frame is not None:
         cv2.putText(frame, gesture_text, (20, 60),
                     cv2.FONT_HERSHEY_SIMPLEX, 1.3, (0, 255, 255), 3)

@@ -109,7 +109,64 @@ def handle_collisions(particles, max_checks=700):
                 p1.collision_timer = p2.collision_timer = 6
 
 
-def update_bacteria_growth(particles, temp, humidity, ph, light, microbe_key, max_particles):
+def update_bacteria_growth(particles, temp, humidity, ph, light, nutrients, microbe_key, max_particles):
+    #                                                        ↑ nuevo parámetro
+    if not particles:
+        return nutrients   # devuelve sin cambios
+
+    growth_rate = calculate_growth_rate(temp, humidity, ph, light, nutrients, microbe_key)
+    data = get_microbe_data(microbe_key)
+    if not data:
+        return nutrients
+
+    new_bacteria = []
+    nutrient_cost = data.get("nutrient_consumption", 0.005)
+
+    for p in particles:
+        if not p.is_bacteria:
+            continue
+
+        # Verificar condiciones límite
+        temp_ok = data["temp_range"][0] <= temp <= data["temp_range"][1]
+        ph_ok   = data["ph_range"][0]   <= ph   <= data["ph_range"][1]
+
+        if not temp_ok or not ph_ok:
+            p.stress_timer += 1
+            p.state = "stressed"
+        else:
+            p.stress_timer = max(0, p.stress_timer - 2)
+            if p.stress_timer == 0:
+                p.state = "healthy"
+
+        if p.stress_timer > 180:
+            p.state = "dead"
+            continue
+
+        # Sin nutrientes → estrés aunque condiciones sean buenas
+        if nutrients <= 5.0:
+            p.stress_timer += 1
+            p.state = "stressed"
+            continue
+
+        # Reproducción solo si healthy y hay nutrientes
+        if p.state == "healthy":
+            if len(particles) + len(new_bacteria) < max_particles:
+                if len(new_bacteria) < 12:
+                    if random.random() < growth_rate:
+                        new_bacteria.append(Particle(
+                            p.pos[0] + random.uniform(-25, 25),
+                            p.pos[1] + random.uniform(-25, 25),
+                            is_bacteria=True,
+                            microbe_key=microbe_key
+                        ))
+                        # Consumir nutrientes al reproducirse
+                        nutrients -= nutrient_cost
+
+    particles[:] = [p for p in particles if p.state != "dead"]
+    particles.extend(new_bacteria)
+
+    # Clamp para que no sea negativo
+    return max(0.0, nutrients)   # ← devuelve el valor actualizado
     if not particles:
         return
 
