@@ -547,6 +547,7 @@ def draw_controls_help(surface, current_h):
         "• Tecla N        → Nueva bacteria custom",
         "• Tecla F        → Reponer nutrientes 100%",
         "• Espacio        → Pausar | R → Reiniciar",
+        "• Tecla M        → Análisis matemático",
     ]
     y = current_h - 258
     for line in help_texts:

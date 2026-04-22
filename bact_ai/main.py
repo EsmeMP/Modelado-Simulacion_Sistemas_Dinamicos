@@ -11,10 +11,12 @@ from collections import deque
 
 # Importamos módulos
 from config import *
-from microbes import get_all_microbes, get_microbe_data
+from microbes import get_all_microbes, get_microbe_data, calculate_growth_rate 
 from simulation import Particle, create_explosion, handle_collisions, update_bacteria_growth
 from gestures import GestureController
 from ui import Slider, PopulationGraph, draw_ui, CustomMicrobeForm
+from analysis import show_analysis
+
 
 # ========================
 # INICIALIZACIÓN
@@ -34,6 +36,9 @@ simulated_days  = 0
 paused          = False
 show_trails     = True
 enable_collisions = True
+
+simulation_history = []      # guarda la población real frame a frame
+HISTORY_SAMPLE = 10          # guardar 1 de cada 10 frames para no llenar memoria
 
 # Partículas — todas nacen como bacterias
 particles = [
@@ -153,6 +158,29 @@ while running:
                 current_microbe = keys[(idx - 1) % len(keys)]
                 gesture_text = f"Microbio: {current_microbe}"
 
+            elif event.key == pygame.K_m:
+                # Tecla M → abrir análisis matemático en ventana matplotlib
+                r_actual = calculate_growth_rate(
+                    temp, humidity, ph, light, nutrients, current_microbe
+                )
+                show_analysis(
+                    N0      = max(1, len(particles)),
+                    r       = r_actual,
+                    K       = MAX_PARTICLES,
+                    t_max   = max(10, simulated_days if simulated_days > 0 else 30),
+                    steps   = 500,
+                    simulation_history = simulation_history.copy(),
+                    microbe_name       = current_microbe,
+                    factor_values      = {
+                        "temp":      temp,
+                        "humidity":  humidity,
+                        "ph":        ph,
+                        "light":     light,
+                        "nutrients": nutrients,
+                    }
+                )
+                gesture_text = "Análisis matemático abierto (ventana matplotlib)"
+ 
     # ------------------- Procesar gestos -------------------
     frame, result = gesture_controller.get_frame()
     if frame is None:
@@ -222,6 +250,11 @@ while running:
             handle_collisions(particles)
 
         population_graph.update(len(particles))
+        if len(simulation_history) == 0 or \
+           pygame.time.get_ticks() % HISTORY_SAMPLE == 0:
+            simulation_history.append(len(particles))
+            if len(simulation_history) > 500:   # limitar tamaño
+                simulation_history.pop(0)
 
     # ------------------- +1 Día con gesto -------------------
     current_time = pygame.time.get_ticks()
