@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>GestBact · Launcher</title>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;900&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:         #030a06;
+      --surface:    #071209;
+      --surface2:   #0b1a0f;
+      --border:     rgba(0,255,100,0.08);
+      --border-h:   rgba(0,255,100,0.25);
+      --text:       #d4f0dc;
+      --muted:      #3d6b4a;
+      --accent:     #00ff64;
+      --accent2:    #00c8ff;
+      --accent3:    #ff6b35;
+      --warn:       #ffd166;
+      --danger:     #ef233c;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Outfit', sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── Animated bacteria background ── */
+    .bg-canvas {
+      position: fixed; inset: 0; z-index: 0;
+      pointer-events: none;
+      overflow: hidden;
+    }
+    .orb {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(80px);
+      animation: float linear infinite;
+      opacity: 0.12;
+    }
+    .orb-1 { width:500px;height:500px;background:radial-gradient(#00ff64,transparent 70%); top:-100px;left:-100px; animation-duration:22s; }
+    .orb-2 { width:350px;height:350px;background:radial-gradient(#00c8ff,transparent 70%); bottom:0;right:10%;     animation-duration:18s;animation-delay:-9s; }
+    .orb-3 { width:280px;height:280px;background:radial-gradient(#00ff64,transparent 70%); bottom:30%;left:40%;   animation-duration:26s;animation-delay:-4s; }
+
+    @keyframes float {
+      0%,100% { transform: translateY(0) scale(1); }
+      33%      { transform: translateY(-40px) scale(1.05); }
+      66%      { transform: translateY(20px) scale(0.96); }
+    }
+
+    /* scanlines */
+    .bg-canvas::after {
+      content:'';
+      position: absolute; inset: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(0,255,100,0.012) 2px,
+        rgba(0,255,100,0.012) 4px
+      );
+    }
+
+    /* ── Layout ── */
+    .wrap {
+      position: relative; z-index: 1;
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 0 28px 80px;
+    }
+
+    /* ── Header ── */
+    header {
+      padding: 52px 0 44px;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: end;
+      gap: 20px;
+    }
+
+    .header-tag {
+      font-family: 'Space Mono', monospace;
+      font-size: 10px;
+      letter-spacing: .22em;
+      color: var(--accent);
+      text-transform: uppercase;
+      margin-bottom: 12px;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .header-tag::before {
+      content: '';
+      width: 20px; height: 1px;
+      background: var(--accent);
+    }
+
+    h1 {
+      font-size: clamp(2.6rem, 5.5vw, 4.2rem);
+      font-weight: 900;
+      line-height: 1;
+      letter-spacing: -0.04em;
+      color: #fff;
+    }
+    h1 .hl {
+      color: var(--accent);
+      text-shadow: 0 0 30px rgba(0,255,100,0.5);
+    }
+
+    .subtitle {
+      margin-top: 12px;
+      font-family: 'Space Mono', monospace;
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .server-pill {
+      display: flex; align-items: center; gap: 7px;
+      padding: 8px 16px;
+      background: rgba(0,255,100,0.05);
+      border: 1px solid rgba(0,255,100,0.18);
+      border-radius: 99px;
+      font-family: 'Space Mono', monospace;
+      font-size: 10px;
+      color: var(--accent);
+      white-space: nowrap;
+      align-self: start;
+      margin-top: 8px;
+    }
+    .pulse { width:6px;height:6px;border-radius:50%;background:var(--accent);animation:blink 2s infinite; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.25} }
+
+    /* ── Separator ── */
+    .sep {
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(0,255,100,0.15), transparent);
+      margin-bottom: 48px;
+    }
+
+    /* ── Cards ── */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+      gap: 18px;
+    }
+
+    .card {
+      position: relative;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 30px;
+      overflow: hidden;
+      transition: transform .28s ease, border-color .28s, box-shadow .28s;
+      animation: rise .5s ease both;
+    }
+    .card:nth-child(1){animation-delay:.04s}
+    .card:nth-child(2){animation-delay:.11s}
+    .card:nth-child(3){animation-delay:.18s}
+
+    @keyframes rise {
+      from{opacity:0;transform:translateY(28px)}
+      to{opacity:1;transform:translateY(0)}
+    }
+
+    .card.disponible:hover {
+      transform: translateY(-5px);
+      border-color: var(--border-h);
+      box-shadow: 0 0 48px rgba(0,255,100,0.08), 0 20px 40px rgba(0,0,0,.5);
+    }
+    .card.proximamente {
+      opacity: .55;
+      cursor: default;
+    }
+
+    /* glow top-right */
+    .card::before {
+      content:'';
+      position:absolute;
+      width:200px;height:200px;
+      border-radius:50%;
+      top:-70px;right:-70px;
+      background:radial-gradient(var(--accent),transparent 70%);
+      opacity:0;
+      filter:blur(40px);
+      transition:opacity .4s;
+      pointer-events:none;
+    }
+    .card.disponible:hover::before { opacity:.07; }
+
+    /* index badge */
+    .card-idx {
+      position:absolute; top:26px; right:26px;
+      font-family:'Space Mono',monospace;
+      font-size:10px; color:var(--muted);
+    }
+
+    .card-icon {
+      font-size:2.6rem;
+      margin-bottom:18px;
+      display:block;
+      line-height:1;
+      filter: drop-shadow(0 0 12px rgba(0,255,100,.3));
+    }
+
+    .card-title {
+      font-size:1.2rem;
+      font-weight:700;
+      letter-spacing:-.02em;
+      margin-bottom:8px;
+      color:#fff;
+    }
+
+    .card-desc {
+      font-family:'Space Mono',monospace;
+      font-size:11px;
+      font-weight:400;
+      color:var(--muted);
+      line-height:1.75;
+      margin-bottom:22px;
+    }
+
+    /* tags */
+    .tags {
+      display:flex; flex-wrap:wrap; gap:6px;
+      margin-bottom:22px;
+    }
+    .tag {
+      padding:3px 10px;
+      border:1px solid rgba(0,255,100,0.15);
+      border-radius:99px;
+      font-family:'Space Mono',monospace;
+      font-size:9px;
+      color:rgba(0,255,100,0.5);
+      letter-spacing:.05em;
+    }
+    .tag.soon { border-color:rgba(255,255,255,.08); color:var(--muted); }
+
+    /* status row */
+    .status-row {
+      display:flex; align-items:center; gap:8px;
+      padding:8px 12px;
+      border-radius:10px;
+      border:1px solid var(--border);
+      background:rgba(255,255,255,.02);
+      font-family:'Space Mono',monospace;
+      font-size:10px;
+      color:var(--muted);
+      margin-bottom:16px;
+      transition:all .3s;
+    }
+    .status-row.activo {
+      border-color:rgba(0,255,100,.25);
+      background:rgba(0,255,100,.05);
+      color:#a0ffca;
+    }
+    .status-row.activo .sdot { background:var(--accent); animation:blink 1.4s infinite; }
+    .sdot { width:5px;height:5px;border-radius:50%;background:var(--muted);flex-shrink:0;transition:background .3s; }
+
+    /* buttons */
+    .btn-row { display:flex; gap:8px; }
+
+    .btn {
+      flex:1;
+      padding:11px 14px;
+      border-radius:11px;
+      border:1px solid var(--border);
+      font-family:'Outfit',sans-serif;
+      font-size:13px;
+      font-weight:600;
+      cursor:pointer;
+      transition:all .2s;
+      letter-spacing:.01em;
+      background:transparent;
+      color:var(--text);
+    }
+    .btn-start:hover { background:rgba(0,255,100,.1); border-color:var(--accent); color:var(--accent); }
+    .btn-stop  { flex:0 0 auto; padding:11px 13px; font-size:12px; }
+    .btn-stop:hover  { background:rgba(239,35,60,.1); border-color:var(--danger); color:var(--danger); }
+    .btn:disabled,.btn.loading { opacity:.35; cursor:not-allowed; pointer-events:none; }
+    .btn.loading { opacity:.55; pointer-events:none; }
+
+    /* ── Toast ── */
+    #toast {
+      position:fixed; bottom:28px; right:28px;
+      background:var(--surface2);
+      border:1px solid var(--border);
+      padding:12px 18px;
+      border-radius:12px;
+      font-family:'Space Mono',monospace;
+      font-size:11px;
+      color:var(--text);
+      box-shadow:0 8px 32px rgba(0,0,0,.6);
+      transform:translateY(70px);
+      opacity:0;
+      transition:all .3s cubic-bezier(.34,1.56,.64,1);
+      z-index:200;
+      max-width:280px;
+    }
+    #toast.show { transform:translateY(0); opacity:1; }
+    #toast.ok  { border-color:rgba(0,255,100,.4); color:var(--accent); }
+    #toast.err { border-color:rgba(239,35,60,.4); color:#ff6b7a; }
+    #toast.warn{ border-color:rgba(255,209,102,.4); color:var(--warn); }
+
+    /* ── Footer ── */
+    footer {
+      margin-top:60px;
+      padding-top:22px;
+      border-top:1px solid var(--border);
+      display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;
+    }
+    footer span {
+      font-family:'Space Mono',monospace;
+      font-size:10px; color:var(--muted);
+    }
+    .f-badges { display:flex; gap:7px; flex-wrap:wrap; }
+    .fbadge {
+      padding:3px 10px;
+      border:1px solid rgba(255,255,255,.06);
+      border-radius:99px;
+      font-family:'Space Mono',monospace;
+      font-size:9px; color:var(--muted);
+    }
+  </style>
+</head>
+<body>
+
+<div class="bg-canvas">
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
+</div>
+
+<div class="wrap">
+
+  <header>
+    <div>
+      <p class="header-tag">Matemáticas · 8-IDGS</p>
+      <h1>Gest<span class="hl">Bact</span><br>Launcher</h1>
+      <p class="subtitle">// Selecciona un proyecto para abrirlo<br>// Las ventanas se abren fuera del navegador</p>
+    </div>
+    <div class="server-pill">
+      <span class="pulse"></span> Flask · localhost:5000
+    </div>
+  </header>
+
+  <div class="sep"></div>
+
+  <div class="grid">
+    {% for pid, p in proyectos.items() %}
+    {% set disponible = p.script is not none %}
+    <div class="card {{ 'disponible' if disponible else 'proximamente' }}" data-id="{{ pid }}">
+      <span class="card-idx">{{ '%02d'|format(loop.index) }}</span>
+      <span class="card-icon">{{ p.icono }}</span>
+      <div class="card-title">{{ p.nombre }}</div>
+      <div class="card-desc">{{ p.descripcion }}</div>
+
+      <div class="tags">
+        {% for t in p.tags %}
+        <span class="tag {{ 'soon' if not disponible }}">{{ t }}</span>
+        {% endfor %}
+      </div>
+
+      <div class="status-row" id="status-{{ pid }}">
+        <span class="sdot"></span>
+        <span class="slabel">{{ 'Inactivo' if disponible else 'No disponible' }}</span>
+      </div>
+
+      {% if disponible %}
+      <div class="btn-row">
+        <button class="btn btn-start" onclick="iniciar('{{ pid }}', this)">▶ Iniciar</button>
+        <button class="btn btn-stop"  onclick="detener('{{ pid }}')">■</button>
+      </div>
+      {% else %}
+      <div class="btn-row">
+        <button class="btn" disabled>Próximamente</button>
+      </div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+
+  <footer>
+    <span>GestBact Launcher · matematicas/launcher/app.py</span>
+    <div class="f-badges">
+      <span class="fbadge">Flask</span>
+      <span class="fbadge">MediaPipe</span>
+      <span class="fbadge">Pygame</span>
+      <span class="fbadge">OpenCV</span>
+      <span class="fbadge">Python 3.11</span>
+    </div>
+  </footer>
+
+</div>
+
+<div id="toast"></div>
+
+<script>
+  const ids = {{ proyectos.keys()|list|tojson }};
+
+  // ── Polling de estado cada 2s ──
+  function pollEstados() {
+    ids.forEach(pid => {
+      fetch(`/estado/${pid}`)
+        .then(r => r.json())
+        .then(d => setStatus(pid, d.activo))
+        .catch(() => {});
+    });
+  }
+
+  function setStatus(pid, activo) {
+    const row = document.getElementById(`status-${pid}`);
+    if (!row) return;
+    row.className = 'status-row' + (activo ? ' activo' : '');
+    row.querySelector('.slabel').textContent = activo ? 'En ejecución' : 'Inactivo';
+  }
+
+  function iniciar(pid, btn) {
+    btn.classList.add('loading');
+    btn.textContent = '⟳ Iniciando…';
+    fetch(`/iniciar/${pid}`)
+      .then(r => r.json())
+      .then(d => {
+        toast(d.msg, d.ok ? 'ok' : 'warn');
+        if (d.ok) setStatus(pid, true);
+      })
+      .catch(() => toast('Error de conexión', 'err'))
+      .finally(() => {
+        btn.classList.remove('loading');
+        btn.textContent = '▶ Iniciar';
+      });
+  }
+
+  function detener(pid) {
+    fetch(`/detener/${pid}`)
+      .then(r => r.json())
+      .then(d => {
+        toast(d.msg, d.ok ? 'ok' : 'warn');
+        if (d.ok) setStatus(pid, false);
+      })
+      .catch(() => toast('Error de conexión', 'err'));
+  }
+
+  // ── Toast ──
+  let _tt;
+  function toast(msg, tipo = '') {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.className = 'show ' + tipo;
+    clearTimeout(_tt);
+    _tt = setTimeout(() => el.className = '', 3200);
+  }
+
+  setInterval(pollEstados, 2000);
+  pollEstados();
+</script>
+</body>
+</html>
