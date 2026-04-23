@@ -1,5 +1,20 @@
-pygame
-opencv-python
-mediapipe
-numpy
-matplotlib  
+# ========================
+# GestBact AI - Dependencias
+# ========================
+# Instalar con:
+#   pip install -r requeriments.txt
+ 
+# ── Core ──
+pygame>=2.6.0
+numpy>=1.24.0
+ 
+# ── Visión por computadora y gestos ──
+opencv-python>=4.9.0
+mediapipe>=0.10.0
+ 
+# ── Análisis matemático y gráficas ──
+matplotlib>=3.8.0
+ 
+# ── Datos ──
+# json → stdlib, no requiere instalación
+ 

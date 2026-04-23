@@ -347,7 +347,7 @@ class CustomMicrobeForm:
 
         sw, sh = surface.get_size()
         overlay = pygame.Surface((sw, sh), pygame.SRCALPHA)
-        overlay.fill((0, 0, 0, 200))
+        overlay.fill((0, 0, 0, 140))
         surface.blit(overlay, (0, 0))
 
         if self.form_state == FORM_ERRORS:
@@ -360,7 +360,9 @@ class CustomMicrobeForm:
         px = (sw - pw) // 2
         py = (sh - ph_panel) // 2
 
-        pygame.draw.rect(surface, (15, 15, 30), (px, py, pw, ph_panel), border_radius=16)
+        panel = pygame.Surface((pw, ph_panel), pygame.SRCALPHA)
+        pygame.draw.rect(panel, (15, 15, 30, 180), (0, 0, pw, ph_panel), border_radius=16)
+        surface.blit(panel, (px, py))
         pygame.draw.rect(surface, PURPLE, (px, py, pw, ph_panel), 2, border_radius=16)
 
         # Título
@@ -407,7 +409,9 @@ class CustomMicrobeForm:
         px = (sw - pw) // 2
         py = (sh - ph_panel) // 2
 
-        pygame.draw.rect(surface, (20, 10, 10), (px, py, pw, ph_panel), border_radius=16)
+        panel = pygame.Surface((pw, ph_panel), pygame.SRCALPHA)
+        pygame.draw.rect(panel, (20, 10, 10, 180), (0, 0, pw, ph_panel), border_radius=16)
+        surface.blit(panel, (px, py))
         pygame.draw.rect(surface, RED, (px, py, pw, ph_panel), 2, border_radius=16)
 
         # Título
@@ -486,11 +490,35 @@ class PopulationGraph:
 # ========================
 
 def draw_nutrient_background(surface, nutrients, current_w, current_h):
-    ratio = max(0.0, min(1.0, nutrients / 100.0))
-    g = int(5 + (25 - 5) * ratio)
-    if g > 6:
-        surface.fill((5, g, 5))
+    """
+    Fondo siempre negro.
+    Nutrientes se muestran como barra horizontal en la parte inferior.
+    """
+    # Fondo negro puro
+    surface.fill((0, 0, 0))
 
+    # Barra de nutrientes en la parte inferior
+    bar_h    = 6
+    bar_y    = current_h - bar_h
+    bar_w    = int((nutrients / 100.0) * current_w)
+
+    # Color de la barra: verde → amarillo → rojo según nivel
+    if nutrients > 60:
+        bar_color = (50, 220, 80)       # verde
+    elif nutrients > 30:
+        bar_color = (220, 180, 50)      # amarillo
+    else:
+        bar_color = (220, 60, 60)       # rojo crítico
+
+    # Fondo de la barra (gris oscuro)
+    pygame.draw.rect(surface, (25, 25, 25), (0, bar_y, current_w, bar_h))
+    # Barra activa
+    pygame.draw.rect(surface, bar_color, (0, bar_y, bar_w, bar_h))
+
+    # Etiqueta sobre la barra si está crítica
+    if nutrients < 20:
+        warn = font.render("⚠ NUTRIENTES CRÍTICOS", True, (255, 80, 80))
+        surface.blit(warn, (current_w // 2 - warn.get_width() // 2, bar_y - 28))
 
 def draw_info_panel(surface, temp, humidity, ph, light, nutrients,
                     current_microbe, simulated_days, particles):
@@ -510,7 +538,7 @@ def draw_info_panel(surface, temp, humidity, ph, light, nutrients,
     panel_height       = 320
 
     s = pygame.Surface((panel_width, panel_height), pygame.SRCALPHA)
-    pygame.draw.rect(s, (0, 0, 0, 170), (0, 0, panel_width, panel_height), border_radius=15)
+    pygame.draw.rect(s, (0, 0, 0, 110), (0, 0, panel_width, panel_height), border_radius=15)
     surface.blit(s, (panel_x, panel_y))
     pygame.draw.rect(surface, color, (panel_x, panel_y, panel_width, panel_height), 3, border_radius=15)
 
@@ -563,6 +591,11 @@ def draw_ui(surface, temp, humidity, ph, light, nutrients, current_microbe, simu
     draw_nutrient_background(surface, nutrients, current_w, current_h)
     draw_info_panel(surface, temp, humidity, ph, light, nutrients,
                     current_microbe, simulated_days, particles)
+    
+    # Fondo semitransparente para sliders
+    slider_bg = pygame.Surface((320, 230), pygame.SRCALPHA)
+    pygame.draw.rect(slider_bg, (0, 0, 0, 90), (0, 0, 320, 230), border_radius=12)
+    surface.blit(slider_bg, (435, 45))
     temp_slider.draw(surface)
     hum_slider.draw(surface)
     ph_slider.draw(surface)

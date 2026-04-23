@@ -24,6 +24,7 @@ microbes_db = {
         "nutrient_consumption": 0.008,
         "base_rate": 0.038,
         "color": (70, 255, 100),
+        "shape": "bacilo_peritrico",
         "description": "Bacteria intestinal común"
     },
     "Salmonella": {
@@ -38,6 +39,7 @@ microbes_db = {
         "nutrient_consumption": 0.007,
         "base_rate": 0.033,
         "color": (255, 180, 60),
+        "shape": "bacilo_peritrico",
         "description": "Intoxicación alimentaria"
     },
     "Staphylococcus": {
@@ -52,6 +54,7 @@ microbes_db = {
         "nutrient_consumption": 0.005,
         "base_rate": 0.029,
         "color": (255, 90, 90),
+        "shape": "coco",
         "description": "Infecciones de piel"
     },
     "Influenza": {
@@ -66,6 +69,7 @@ microbes_db = {
         "nutrient_consumption": 0.003,
         "base_rate": 0.019,
         "color": (100, 200, 255),
+        "shape": "virus",   
         "description": "Virus respiratorio"
     },
     "Pseudomonas": {
@@ -80,6 +84,7 @@ microbes_db = {
         "nutrient_consumption": 0.009,
         "base_rate": 0.035,
         "color": (0, 255, 200),
+        "shape": "bacilo_polar", 
         "description": "Común en hospitales"
     }
 }

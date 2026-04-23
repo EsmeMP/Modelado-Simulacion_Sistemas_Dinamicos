@@ -267,7 +267,7 @@ while running:
     # ========================
     # DIBUJAR
     # ========================
-    screen.fill(BLACK)
+    # screen.fill(BLACK)
 
     # Trails
     if show_trails and len(particles) < 900:
@@ -278,13 +278,16 @@ while running:
                 trail_surf = pygame.Surface((6, 6), pygame.SRCALPHA)
                 pygame.draw.circle(trail_surf, (*p.color[:3], alpha), (3, 3), 3)
                 screen.blit(trail_surf, (int(p.pos[0]) - 3, int(p.pos[1]) - 3))
-
-    for p in particles:
-        p.draw(screen)
+                
 
     draw_ui(screen, temp, humidity, ph, light, nutrients, current_microbe, simulated_days,
             particles, population_graph,
             temp_slider, hum_slider, ph_slider, light_slider, nutrient_slider)
+    
+
+    for p in particles:
+        p.draw(screen)
+
 
     # Texto de gesto grande
     if any(w in gesture_text for w in ["Temp", "Humedad", "pH", "Luz", "Microbio", "Antibiótico", "Nutrientes"]):
