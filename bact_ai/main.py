@@ -151,12 +151,27 @@ while running:
                 idx = keys.index(current_microbe)
                 current_microbe = keys[(idx + 1) % len(keys)]
                 gesture_text = f"Microbio: {current_microbe}"
+                # Actualizar shape y color de todas las partículas existentes
+                data = get_microbe_data(current_microbe)
+                if data:
+                    for p in particles:
+                        if p.is_bacteria:
+                            p.shape       = data.get("shape", "bacilo_peritrico")
+                            p.color       = tuple(data["color"])
+                            p.microbe_key = current_microbe
 
             elif event.key == pygame.K_LEFT:
                 keys = get_all_microbes()
                 idx = keys.index(current_microbe)
                 current_microbe = keys[(idx - 1) % len(keys)]
                 gesture_text = f"Microbio: {current_microbe}"
+                data = get_microbe_data(current_microbe)
+                if data:
+                    for p in particles:
+                        if p.is_bacteria:
+                            p.shape       = data.get("shape", "bacilo_peritrico")
+                            p.color       = tuple(data["color"])
+                            p.microbe_key = current_microbe
 
             elif event.key == pygame.K_m:
                 # Tecla M → abrir análisis matemático en ventana matplotlib
@@ -246,7 +261,7 @@ while running:
         # Reflejar el consumo real en el slider
         nutrient_slider.update(nutrients)
 
-        if enable_collisions and len(particles) < 950:
+        if enable_collisions and len(particles) < 600:
             handle_collisions(particles)
 
         population_graph.update(len(particles))
@@ -270,15 +285,16 @@ while running:
     # screen.fill(BLACK)
 
     # Trails
-    if show_trails and len(particles) < 900:
+    if show_trails and len(particles) < 500:   
         for p in particles:
             speed = np.linalg.norm(p.vel)
-            if speed > 15:
-                alpha = min(40, int(25 * (speed / 200)))
+            if speed > 25:                     
                 trail_surf = pygame.Surface((6, 6), pygame.SRCALPHA)
+                alpha      = min(35, int(20 * (speed / 200)))
                 pygame.draw.circle(trail_surf, (*p.color[:3], alpha), (3, 3), 3)
                 screen.blit(trail_surf, (int(p.pos[0]) - 3, int(p.pos[1]) - 3))
-                
+
+
 
     draw_ui(screen, temp, humidity, ph, light, nutrients, current_microbe, simulated_days,
             particles, population_graph,
