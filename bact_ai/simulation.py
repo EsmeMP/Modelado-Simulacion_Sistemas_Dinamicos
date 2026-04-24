@@ -327,15 +327,21 @@ class Particle:
 # FUNCIONES DE SIMULACIÓN
 # ========================
 
-def create_explosion(particles_list, x, y, count=35, intensity=1.0):
+def create_explosion(particles_list, x, y, count=35,
+                     intensity=1.0, microbe_key="E. coli"):
+    from microbes import get_microbe_data
+    data  = get_microbe_data(microbe_key)
+    color = tuple(data["color"]) if data else (255, 255, 100)
+
     for _ in range(count):
-        p = Particle(x, y, is_bacteria=False)
-        p.vel = np.array([
+        p       = Particle(x, y, is_bacteria=False)
+        p.vel   = np.array([
             random.uniform(-300, 300) * intensity,
             random.uniform(-300, 300) * intensity
         ])
-        p.glow = 1.3
-        p.size = random.uniform(3.5, 8.0)
+        p.glow  = 1.3
+        p.size  = random.uniform(3.5, 8.0)
+        p.color = color          # color del microbio en vez de CYAN
         particles_list.append(p)
 
 

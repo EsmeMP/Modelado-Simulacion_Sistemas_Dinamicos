@@ -1,5 +1,8 @@
 # ========================
-# UI.PY - Rediseño completo de layout
+# UI.PY - Layout reorganizado
+# Gráfica abajo con ejes X/Y
+# Sliders arriba derecha (donde estaba la gráfica)
+# Menos transparencia en paneles
 # ========================
 
 import pygame
@@ -7,22 +10,23 @@ from config import *
 from microbes import get_microbe_data
 
 # ── Constantes de layout ──────────────────────────────────────────────────────
-PANEL_ALPHA   = 150       # transparencia de paneles
-SIDEBAR_W     = 320       # ancho de la barra lateral izquierda
-TOPBAR_H      = 260       # altura de la barra superior derecha (sliders + gráfica)
+PANEL_ALPHA  = 50        # más opaco 
+SIDEBAR_W    = 320        # ancho panel izquierdo
+GRAPH_H      = 200        # altura gráfica inferior
+GRAPH_MARGIN = 45         # margen para ejes Y y X
 
 
 class Slider:
     def __init__(self, x, y, width, min_val, max_val, label, color):
-        self.x       = x
-        self.y       = y
-        self.width   = width
-        self.height  = 14
-        self.min_val = min_val
-        self.max_val = max_val
-        self.label   = label
-        self.color   = color
-        self.value   = (min_val + max_val) / 2
+        self.x        = x
+        self.y        = y
+        self.width    = width
+        self.height   = 14
+        self.min_val  = min_val
+        self.max_val  = max_val
+        self.label    = label
+        self.color    = color
+        self.value    = (min_val + max_val) / 2
         self.dragging = False
 
     def update(self, value):
@@ -42,34 +46,29 @@ class Slider:
         elif event.type == pygame.MOUSEBUTTONUP and event.button == 1:
             self.dragging = False
         elif event.type == pygame.MOUSEMOTION and self.dragging:
-            mx    = event.pos[0]
-            ratio = (mx - self.x) / self.width
+            mx         = event.pos[0]
+            ratio      = (mx - self.x) / self.width
             self.value = self.min_val + ratio * (self.max_val - self.min_val)
             self.value = max(self.min_val, min(self.max_val, self.value))
             return True
         return False
 
     def draw(self, surface):
-        # Track
         pygame.draw.rect(surface, (50, 50, 60),
                          (self.x, self.y, self.width, self.height),
                          border_radius=7)
-        # Fill
         fill_w = int((self.value - self.min_val) /
                      (self.max_val - self.min_val) * self.width)
         pygame.draw.rect(surface, self.color,
                          (self.x, self.y, fill_w, self.height),
                          border_radius=7)
-        # Handle
         hx     = self.x + fill_w
         radius = 12 if self.dragging else 9
         pygame.draw.circle(surface, WHITE, (hx, self.y + self.height // 2), radius)
         pygame.draw.circle(surface, self.color,
                            (hx, self.y + self.height // 2), radius - 2)
-        # Label — compacto
-        label_surf = font.render(
-            f"{self.label}: {self.value:.1f}", True, WHITE)
-        surface.blit(label_surf, (self.x, self.y - 20))
+        surface.blit(font.render(f"{self.label}: {self.value:.1f}", True, WHITE),
+                     (self.x, self.y - 20))
 
 
 # ========================
@@ -81,22 +80,22 @@ FORM_ERRORS  = "errors"
 
 class CustomMicrobeForm:
     FIELDS = [
-        ("clave",            "Nombre clave (ej: MiBact)",                   str),
-        ("name",             "Nombre científico",                           str),
+        ("clave",            "Nombre clave (ej: MiBact)",                      str),
+        ("name",             "Nombre científico",                              str),
         ("shape",            "Forma: bacilo_peritrico/bacilo_polar/coco/virus", str),
-        ("optimal_temp",     "Temp óptima °C  [0-100]",                    float),
-        ("temp_min",         "Temp mínima °C",                             float),
-        ("temp_max",         "Temp máxima °C",                             float),
-        ("optimal_ph",       "pH óptimo  [4.0-9.0]",                       float),
-        ("ph_min",           "pH mínimo  [>=4.0]",                         float),
-        ("ph_max",           "pH máximo  [<=9.0]",                         float),
-        ("optimal_humidity", "Humedad óptima %  [0-100]",                  float),
-        ("light_sensitivity","Sensibilidad luz  [0.0-1.0]",                float),
-        ("base_rate",        "Tasa base  [0.001-0.1]",                     float),
-        ("color_r",          "Color R  [0-255]",                           int),
-        ("color_g",          "Color G  [0-255]",                           int),
-        ("color_b",          "Color B  [0-255]",                           int),
-        ("description",      "Descripción corta",                          str),
+        ("optimal_temp",     "Temp óptima °C  [0-100]",                       float),
+        ("temp_min",         "Temp mínima °C",                                float),
+        ("temp_max",         "Temp máxima °C",                                float),
+        ("optimal_ph",       "pH óptimo  [4.0-9.0]",                          float),
+        ("ph_min",           "pH mínimo  [>=4.0]",                            float),
+        ("ph_max",           "pH máximo  [<=9.0]",                            float),
+        ("optimal_humidity", "Humedad óptima %  [0-100]",                     float),
+        ("light_sensitivity","Sensibilidad luz  [0.0-1.0]",                   float),
+        ("base_rate",        "Tasa base  [0.001-0.1]",                        float),
+        ("color_r",          "Color R  [0-255]",                              int),
+        ("color_g",          "Color G  [0-255]",                              int),
+        ("color_b",          "Color B  [0-255]",                              int),
+        ("description",      "Descripción corta",                             str),
     ]
 
     OPT_AUTO   = 0
@@ -143,7 +142,6 @@ class CustomMicrobeForm:
             shapes_validos = ["bacilo_peritrico", "bacilo_polar", "coco", "virus"]
             if i["shape"].strip().lower() not in shapes_validos:
                 errors.append(f"Forma inválida. Opciones: {', '.join(shapes_validos)}")
-
             optimal_temp     = float(i["optimal_temp"])
             temp_min         = float(i["temp_min"])
             temp_max         = float(i["temp_max"])
@@ -156,7 +154,6 @@ class CustomMicrobeForm:
             cr = int(i["color_r"])
             cg = int(i["color_g"])
             cb = int(i["color_b"])
-
             if not (0 <= optimal_temp <= 100):
                 errors.append("Temp óptima fuera de 0-100°C")
             if temp_min >= temp_max:
@@ -183,7 +180,6 @@ class CustomMicrobeForm:
 
     def _auto_fix(self):
         i = self.inputs
-
         shapes_validos = ["bacilo_peritrico", "bacilo_polar", "coco", "virus"]
         if i["shape"].strip().lower() not in shapes_validos:
             i["shape"] = "bacilo_peritrico"
@@ -200,19 +196,18 @@ class CustomMicrobeForm:
             except Exception:
                 i[key] = str((lo + hi) // 2)
 
-        clamp("optimal_temp",      0,     100)
-        clamp("temp_min",         -10,     80)
-        clamp("temp_max",          0,     100)
-        clamp("optimal_ph",        4.0,    9.0)
-        clamp("ph_min",            4.0,    9.0)
-        clamp("ph_max",            4.0,    9.0)
-        clamp("optimal_humidity",  0,     100)
-        clamp("light_sensitivity", 0.0,    1.0)
-        clamp("base_rate",         0.001,  0.1)
-        clamp_int("color_r",       0,     255)
-        clamp_int("color_g",       0,     255)
-        clamp_int("color_b",       0,     255)
-
+        clamp("optimal_temp",      0,      100)
+        clamp("temp_min",         -10,      80)
+        clamp("temp_max",          0,      100)
+        clamp("optimal_ph",        4.0,     9.0)
+        clamp("ph_min",            4.0,     9.0)
+        clamp("ph_max",            4.0,     9.0)
+        clamp("optimal_humidity",  0,      100)
+        clamp("light_sensitivity", 0.0,     1.0)
+        clamp("base_rate",         0.001,   0.1)
+        clamp_int("color_r",       0,      255)
+        clamp_int("color_g",       0,      255)
+        clamp_int("color_b",       0,      255)
         try:
             if float(i["temp_min"]) >= float(i["temp_max"]):
                 i["temp_min"] = str(float(i["temp_max"]) - 5)
@@ -230,19 +225,19 @@ class CustomMicrobeForm:
             i   = self.inputs
             key = i["clave"].strip()
             data = {
-                "name":                i["name"].strip(),
-                "type":                "bacteria",
-                "shape":               i["shape"].strip().lower(),
-                "optimal_temp":        float(i["optimal_temp"]),
-                "temp_range":          (float(i["temp_min"]), float(i["temp_max"])),
-                "optimal_humidity":    float(i["optimal_humidity"]),
-                "optimal_ph":          float(i["optimal_ph"]),
-                "ph_range":            (float(i["ph_min"]), float(i["ph_max"])),
-                "light_sensitivity":   float(i["light_sensitivity"]),
+                "name":                 i["name"].strip(),
+                "type":                 "bacteria",
+                "shape":                i["shape"].strip().lower(),
+                "optimal_temp":         float(i["optimal_temp"]),
+                "temp_range":           (float(i["temp_min"]), float(i["temp_max"])),
+                "optimal_humidity":     float(i["optimal_humidity"]),
+                "optimal_ph":           float(i["optimal_ph"]),
+                "ph_range":             (float(i["ph_min"]), float(i["ph_max"])),
+                "light_sensitivity":    float(i["light_sensitivity"]),
                 "nutrient_consumption": 0.005,
-                "base_rate":           float(i["base_rate"]),
-                "color":               (int(i["color_r"]), int(i["color_g"]), int(i["color_b"])),
-                "description":         i["description"].strip(),
+                "base_rate":            float(i["base_rate"]),
+                "color":                (int(i["color_r"]), int(i["color_g"]), int(i["color_b"])),
+                "description":          i["description"].strip(),
             }
             save_custom_microbe(key, data)
             self.success_msg   = f"'{key}' guardado correctamente"
@@ -270,9 +265,9 @@ class CustomMicrobeForm:
                     self._auto_fix()
                     return self._build_and_save()
                 elif self.error_option == self.OPT_EDIT:
-                    self.form_state  = FORM_FILLING
+                    self.form_state    = FORM_FILLING
                     self.current_field = 0
-                    self.error_msg   = "Revisa y corrige los campos"
+                    self.error_msg     = "Revisa y corrige los campos"
                 elif self.error_option == self.OPT_CANCEL:
                     self.active = False
                     self._reset()
@@ -285,7 +280,6 @@ class CustomMicrobeForm:
             self.active = False
             self._reset()
             return None
-
         elif event.key in (pygame.K_RETURN, pygame.K_TAB):
             field_key, _, field_type = self.FIELDS[self.current_field]
             val = self.inputs[field_key].strip()
@@ -306,7 +300,6 @@ class CustomMicrobeForm:
                     self.error_option    = self.OPT_AUTO
                 else:
                     return self._build_and_save()
-
         elif event.key == pygame.K_BACKSPACE:
             fk = self.FIELDS[self.current_field][0]
             self.inputs[fk] = self.inputs[fk][:-1]
@@ -318,7 +311,6 @@ class CustomMicrobeForm:
         return None
 
     def draw(self, surface):
-        # Timer éxito
         if self.success_msg:
             if self.success_timer == 0:
                 self.success_timer = pygame.time.get_ticks()
@@ -347,30 +339,25 @@ class CustomMicrobeForm:
         pw, ph_panel = 600, 520
         px = (sw - pw) // 2
         py = (sh - ph_panel) // 2
-
         pygame.draw.rect(surface, (15, 15, 30),
                          (px, py, pw, ph_panel), border_radius=16)
         pygame.draw.rect(surface, PURPLE,
                          (px, py, pw, ph_panel), 2, border_radius=16)
-
         surface.blit(big_font.render(
             "Nueva Bacteria Custom  [Esc = cancelar]", True, PURPLE),
             (px + 20, py + 18))
         surface.blit(font.render(
             f"Campo {self.current_field + 1} / {len(self.FIELDS)}", True, LIGHT_GRAY),
             (px + 20, py + 55))
-
         field_key, field_label, _ = self.FIELDS[self.current_field]
         surface.blit(font.render(field_label + ":", True, CYAN),
                      (px + 20, py + 100))
-
         input_val  = self.inputs[field_key]
         input_rect = pygame.Rect(px + 20, py + 130, pw - 40, 42)
         pygame.draw.rect(surface, (30, 30, 55), input_rect, border_radius=8)
         pygame.draw.rect(surface, CYAN, input_rect, 2, border_radius=8)
         surface.blit(big_font.render(input_val + "|", True, WHITE),
                      (input_rect.x + 10, input_rect.y + 8))
-
         surface.blit(font.render("Completados:", True, GRAY),
                      (px + 20, py + 200))
         y_prev = py + 228
@@ -382,7 +369,6 @@ class CustomMicrobeForm:
             y_prev += 22
             if y_prev > py + ph_panel - 70:
                 break
-
         if self.error_msg:
             surface.blit(font.render(self.error_msg, True, RED),
                          (px + 20, py + ph_panel - 55))
@@ -393,23 +379,18 @@ class CustomMicrobeForm:
         pw, ph_panel = 620, 480
         px = (sw - pw) // 2
         py = (sh - ph_panel) // 2
-
         pygame.draw.rect(surface, (20, 10, 10),
                          (px, py, pw, ph_panel), border_radius=16)
         pygame.draw.rect(surface, RED,
                          (px, py, pw, ph_panel), 2, border_radius=16)
-
-        surface.blit(big_font.render(
-            "⚠ Errores detectados", True, RED), (px + 20, py + 18))
-
+        surface.blit(big_font.render("⚠ Errores detectados", True, RED),
+                     (px + 20, py + 18))
         y_e = py + 60
         for err in self.detected_errors[:6]:
             surface.blit(font.render(f"  • {err}", True, YELLOW), (px + 20, y_e))
             y_e += 26
-
         pygame.draw.line(surface, GRAY,
                          (px + 20, y_e + 10), (px + pw - 20, y_e + 10), 1)
-
         options = [
             (self.OPT_AUTO,   "✔  Ajustar automáticamente", GREEN),
             (self.OPT_EDIT,   "✏  Editar manualmente",       CYAN),
@@ -427,58 +408,113 @@ class CustomMicrobeForm:
             surface.blit(font.render(label, True, col if selected else LIGHT_GRAY),
                          (opt_rect.x + 16, opt_rect.y + 10))
             y_opt += 52
+        surface.blit(font.render("↑ ↓ navegar   Enter confirmar", True, GRAY),
+                     (px + 20, py + ph_panel - 30))
 
-        surface.blit(font.render(
-            "↑ ↓ navegar   Enter confirmar", True, GRAY),
-            (px + 20, py + ph_panel - 30))
 
+# ========================
+# GRÁFICA CON EJES
+# ========================
 
 class PopulationGraph:
     def __init__(self, x, y, width, height):
-        self.x            = x
-        self.y            = y
-        self.width        = width
-        self.height       = height
+        self.x              = x
+        self.y              = y
+        self.width          = width
+        self.height         = height
         self.max_population = 2000
-        self.history      = []
+        self.history        = []
 
     def update(self, population):
         self.history.append(population)
-        if len(self.history) > 300:
+        if len(self.history) > 400:
             self.history.pop(0)
         if self.history:
-            self.max_population = max(self.max_population, max(self.history) * 1.15)
+            self.max_population = max(self.max_population,
+                                      max(self.history) * 1.15)
 
     def draw(self, surface):
         if len(self.history) < 2:
             return
 
-        # Fondo
+        # ── Fondo del panel ──
         bg = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
-        pygame.draw.rect(bg, (10, 10, 25, 200),
+        pygame.draw.rect(bg, (8, 8, 20, PANEL_ALPHA),
                          (0, 0, self.width, self.height), border_radius=10)
         surface.blit(bg, (self.x, self.y))
-        pygame.draw.rect(surface, (60, 60, 90),
+        pygame.draw.rect(surface, (70, 70, 100),
                          (self.x, self.y, self.width, self.height),
                          2, border_radius=10)
 
-        surface.blit(font.render("Población", True, WHITE),
-                     (self.x + 10, self.y + 8))
+        # ── Título ──
+        surface.blit(font.render("Población a lo largo del tiempo", True, WHITE),
+                     (self.x + GRAPH_MARGIN + 5, self.y + 6))
 
-        # Línea
+        # ── Área de dibujo (dentro de los márgenes) ──
+        gx  = self.x + GRAPH_MARGIN       # x inicio área
+        gy  = self.y + 28                  # y inicio área (bajo el título)
+        gw  = self.width  - GRAPH_MARGIN - 10
+        gh  = self.height - 28 - 28        # arriba título, abajo eje X
+
+        # ── Líneas de cuadrícula horizontales ──
+        num_y_lines = 4
+        for i in range(num_y_lines + 1):
+            yp = gy + gh - int(i / num_y_lines * gh)
+            pygame.draw.line(surface, (40, 40, 55),
+                             (gx, yp), (gx + gw, yp), 1)
+            # Etiqueta eje Y
+            val_y = int(self.max_population * i / num_y_lines)
+            lbl   = font.render(str(val_y), True, (120, 120, 140))
+            surface.blit(lbl, (self.x + 2, yp - 8))
+
+        # ── Etiqueta eje Y (título lateral) ──
+        # Rotamos manualmente con una Surface pequeña
+        y_title = font.render("N", True, LIGHT_GRAY)
+        surface.blit(y_title, (self.x + 2, gy))
+
+        # ── Líneas de cuadrícula verticales + etiquetas eje X ──
+        num_x_lines = 5
+        total_pts   = len(self.history)
+        for i in range(num_x_lines + 1):
+            xp = gx + int(i / num_x_lines * gw)
+            pygame.draw.line(surface, (40, 40, 55),
+                             (xp, gy), (xp, gy + gh), 1)
+            # Etiqueta: índice de muestra → tiempo relativo
+            idx_sample = int(i / num_x_lines * (total_pts - 1))
+            lbl = font.render(f"t{idx_sample}", True, (120, 120, 140))
+            surface.blit(lbl, (xp - lbl.get_width() // 2,
+                                gy + gh + 4))
+
+        # ── Etiqueta eje X ──
+        x_title = font.render("Tiempo (frames)", True, LIGHT_GRAY)
+        surface.blit(x_title,
+                     (gx + gw // 2 - x_title.get_width() // 2,
+                      gy + gh + 18))
+
+        # ── Ejes principales ──
+        pygame.draw.line(surface, (100, 100, 130),
+                         (gx, gy), (gx, gy + gh), 2)          # eje Y
+        pygame.draw.line(surface, (100, 100, 130),
+                         (gx, gy + gh), (gx + gw, gy + gh), 2) # eje X
+
+        # ── Curva de población ──
         points = []
         for i, pop in enumerate(self.history):
-            xp = self.x + 10 + int(i / (len(self.history) - 1) * (self.width - 20))
-            yp = self.y + self.height - 20 - int(
-                (pop / self.max_population) * (self.height - 35))
+            xp = gx + int(i / (total_pts - 1) * gw)
+            yp = gy + gh - int((pop / self.max_population) * gh)
+            yp = max(gy, min(gy + gh, yp))
             points.append((xp, yp))
 
         if len(points) > 1:
             pygame.draw.lines(surface, GREEN, False, points, 2)
 
-        # Valor actual
-        surface.blit(font.render(f"{self.history[-1]}", True, GREEN),
-                     (self.x + 10, self.y + self.height - 22))
+        # ── Valor actual + máximo ──
+        curr = self.history[-1]
+        mx   = max(self.history)
+        surface.blit(font.render(f"Actual: {curr}", True, GREEN),
+                     (gx + 5, gy + 2))
+        surface.blit(font.render(f"Máx: {mx}", True, CYAN),
+                     (gx + gw - 90, gy + 2))
 
 
 # ========================
@@ -487,7 +523,6 @@ class PopulationGraph:
 
 def _draw_panel_bg(surface, x, y, w, h, border_color,
                    alpha=PANEL_ALPHA, radius=14):
-    """Panel semitransparente reutilizable."""
     bg = pygame.Surface((w, h), pygame.SRCALPHA)
     pygame.draw.rect(bg, (8, 8, 18, alpha), (0, 0, w, h), border_radius=radius)
     surface.blit(bg, (x, y))
@@ -495,23 +530,18 @@ def _draw_panel_bg(surface, x, y, w, h, border_color,
 
 
 def draw_nutrient_background(surface, nutrients, current_w, current_h):
-    """Fondo negro. Barra de nutrientes en la parte inferior."""
     surface.fill((0, 0, 0))
-
     bar_h = 5
     bar_y = current_h - bar_h
     bar_w = int((nutrients / 100.0) * current_w)
-
     if nutrients > 60:
         bar_color = (50, 220, 80)
     elif nutrients > 30:
         bar_color = (220, 180, 50)
     else:
         bar_color = (220, 60, 60)
-
     pygame.draw.rect(surface, (20, 20, 20), (0, bar_y, current_w, bar_h))
     pygame.draw.rect(surface, bar_color,   (0, bar_y, bar_w, bar_h))
-
     if nutrients < 20:
         warn = font.render("⚠ NUTRIENTES CRÍTICOS", True, (255, 80, 80))
         surface.blit(warn,
@@ -520,9 +550,8 @@ def draw_nutrient_background(surface, nutrients, current_w, current_h):
 
 def draw_info_panel(surface, temp, humidity, ph, light, nutrients,
                     current_microbe, simulated_days, particles):
-    """Panel lateral izquierdo — info del microbio y factores."""
+    """Panel lateral izquierdo — más opaco."""
     microbe_data = get_microbe_data(current_microbe)
-
     if microbe_data and "color" in microbe_data:
         color = tuple(max(0, min(255, int(v))) for v in microbe_data["color"])
     else:
@@ -532,79 +561,68 @@ def draw_info_panel(surface, temp, humidity, ph, light, nutrients,
     stressed = sum(1 for p in particles if p.state == "stressed")
     total    = len(particles)
 
-    pw, ph_p = SIDEBAR_W - 10, 290
-    px, py   = 8, 8
+    pw   = SIDEBAR_W - 10
+    ph_p = 295
+    px, py = 8, 8
 
-    _draw_panel_bg(surface, px, py, pw, ph_p, color)
+    _draw_panel_bg(surface, px, py, pw, ph_p, color, alpha=PANEL_ALPHA)
 
-    # Título
     surface.blit(big_font.render("GestBact AI", True, WHITE),
                  (px + 12, py + 10))
-
-    # Nombre microbio
     name_txt = microbe_data["name"] if microbe_data else current_microbe
     surface.blit(font.render(name_txt, True, color),
                  (px + 12, py + 42))
-
-    # Separador
     pygame.draw.line(surface, color,
                      (px + 10, py + 65), (px + pw - 10, py + 65), 1)
 
-    # Factores
     rows = [
-        ("Temperatura",  f"{temp:.1f} °C",      YELLOW),
-        ("Humedad",      f"{humidity:.0f} %",   CYAN),
-        ("pH",           f"{ph:.2f}",            PURPLE),
-        ("Luz UV",       f"{light:.0f} %",      ORANGE),
-        ("Nutrientes",   f"{nutrients:.1f} %",
+        ("Temperatura", f"{temp:.1f} °C",   YELLOW),
+        ("Humedad",     f"{humidity:.0f} %", CYAN),
+        ("pH",          f"{ph:.2f}",          PURPLE),
+        ("Luz UV",      f"{light:.0f} %",    ORANGE),
+        ("Nutrientes",  f"{nutrients:.1f} %",
          GREEN if nutrients > 30 else RED),
-        ("Días",         f"{simulated_days}",    ORANGE),
+        ("Días",        f"{simulated_days}",  ORANGE),
     ]
-
     y_row = py + 75
     for label, value, col in rows:
-        surface.blit(font.render(label, True, LIGHT_GRAY),
-                     (px + 14, y_row))
-        surface.blit(font.render(value, True, col),
-                     (px + pw - 90, y_row))
-        y_row += 28
+        surface.blit(font.render(label, True, LIGHT_GRAY), (px + 14, y_row))
+        surface.blit(font.render(value, True, col), (px + pw - 90, y_row))
+        y_row += 29
 
-    # Separador
     pygame.draw.line(surface, (60, 60, 80),
                      (px + 10, y_row), (px + pw - 10, y_row), 1)
     y_row += 8
-
-    # Estadísticas población
-    surface.blit(font.render(f"Total: {total}", True, WHITE),
-                 (px + 14, y_row))
-    surface.blit(font.render(f"✔ {healthy}", True, GREEN),
-                 (px + 110, y_row))
-    surface.blit(font.render(f"⚠ {stressed}", True, ORANGE),
-                 (px + 185, y_row))
+    surface.blit(font.render(f"Total: {total}", True, WHITE),  (px + 14, y_row))
+    surface.blit(font.render(f"✔ {healthy}",   True, GREEN),   (px + 110, y_row))
+    surface.blit(font.render(f"⚠ {stressed}",  True, ORANGE),  (px + 190, y_row))
 
 
 def draw_sliders_panel(surface, temp_slider, hum_slider,
                         ph_slider, light_slider, nutrient_slider,
                         panel_x, panel_y, panel_w):
-    """Panel de sliders reubicado sin solaparse con info."""
-    ph_p = 175
-    _draw_panel_bg(surface, panel_x, panel_y, panel_w, ph_p, (60, 60, 90))
+    """
+    Sliders en la esquina superior derecha.
+    Panel más opaco.
+    """
+    ph_p   = 182
+    _draw_panel_bg(surface, panel_x, panel_y, panel_w, ph_p,
+                   (70, 70, 100), alpha=PANEL_ALPHA)
 
-    # Reubicar sliders dentro del panel
-    sx    = panel_x + 90
-    sw    = panel_w - 110
-    base_y = panel_y + 30
+    sx     = panel_x + 95
+    sw     = panel_w - 110
+    base_y = panel_y + 32
 
     sliders = [temp_slider, hum_slider, ph_slider, light_slider, nutrient_slider]
     for idx, sl in enumerate(sliders):
         sl.x     = sx
         sl.width = sw
-        sl.y     = base_y + idx * 30
+        sl.y     = base_y + idx * 31
         sl.draw(surface)
 
 
 def draw_controls_help(surface, current_w, current_h):
-    """Panel de controles — esquina inferior derecha."""
+    """Panel de controles — esquina inferior derecha, más opaco."""
     lines = [
         "1 dedo Izq → Temp   |  1 dedo Der → Humedad",
         "3 dedos → pH        |  4 dedos → Luz UV",
@@ -612,12 +630,12 @@ def draw_controls_help(surface, current_w, current_h):
         "B Antibiótico  |  N Custom  |  F Nutrientes",
         "M Análisis  |  Espacio Pausa  |  R Reiniciar",
     ]
-    pw    = 420
-    ph_p  = len(lines) * 22 + 16
-    px    = current_w - pw - 8
-    py    = current_h - ph_p - 12
+    pw   = 430
+    ph_p = len(lines) * 22 + 18
+    px   = current_w - pw - 8
+    py   = current_h - ph_p - 18   # un poco más arriba de la barra de nutrientes
 
-    _draw_panel_bg(surface, px, py, pw, ph_p, (50, 50, 70), alpha=130)
+    _draw_panel_bg(surface, px, py, pw, ph_p, (60, 60, 90), alpha=PANEL_ALPHA)
 
     for idx, line in enumerate(lines):
         surface.blit(font.render(line, True, LIGHT_GRAY),
@@ -634,28 +652,32 @@ def draw_ui(surface, temp, humidity, ph, light, nutrients, current_microbe,
 
     current_w, current_h = surface.get_size()
 
-    # 1. Fondo + barra nutrientes
+    # 1. Fondo negro + barra nutrientes
     draw_nutrient_background(surface, nutrients, current_w, current_h)
 
     # 2. Panel info — lateral izquierdo
     draw_info_panel(surface, temp, humidity, ph, light, nutrients,
                     current_microbe, simulated_days, particles)
 
-    # 3. Sliders — parte superior, a la derecha del panel info
-    slider_panel_x = SIDEBAR_W + 5
-    slider_panel_w = min(380, current_w - slider_panel_x - 10)
+    # 3. Sliders — esquina superior DERECHA
+    #    (donde antes estaba la gráfica)
+    slider_panel_w = 370
+    slider_panel_x = current_w - slider_panel_w - 8
     draw_sliders_panel(surface, temp_slider, hum_slider,
                        ph_slider, light_slider, nutrient_slider,
                        slider_panel_x, 8, slider_panel_w)
 
-    # 4. Gráfica — a la derecha de los sliders
-    graph_x = slider_panel_x + slider_panel_w + 8
-    graph_w = current_w - graph_x - 8
-    if graph_w > 150:
+    # 4. Gráfica — parte INFERIOR, debajo de las bacterias
+    #    desde el panel izquierdo hasta justo antes de los controles
+    controls_w  = 438
+    graph_x     = SIDEBAR_W + 5
+    graph_w     = current_w - graph_x - controls_w - 16
+    graph_y     = current_h - GRAPH_H - 12    # encima de la barra nutrientes
+    if graph_w > 200:
         population_graph.x      = graph_x
-        population_graph.y      = 8
+        population_graph.y      = graph_y
         population_graph.width  = graph_w
-        population_graph.height = 185
+        population_graph.height = GRAPH_H
         population_graph.draw(surface)
 
     # 5. Controles — esquina inferior derecha

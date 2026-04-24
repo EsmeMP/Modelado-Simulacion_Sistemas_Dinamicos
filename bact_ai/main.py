@@ -245,9 +245,26 @@ while running:
                     p.vel += perpendicular * (780 / (dist + 30)) * dt
 
             p.update(total_force, dt)
+            MAX_SPEED = 400.0
+            speed = np.linalg.norm(p.vel)
+            if speed > MAX_SPEED:
+                p.vel = (p.vel / speed) * MAX_SPEED
 
-            if p.pos[0] < 0 or p.pos[0] > current_w:
-                p.vel[0] *= -0.82
+            # Colisiones con paredes
+            margin = 30
+            if p.pos[0] < margin:
+                p.vel[0] += (margin - p.pos[0]) * 2.5   # empuje suave hacia adentro
+                p.pos[0]  = max(2, p.pos[0])
+            elif p.pos[0] > current_w - margin:
+                p.vel[0] -= (p.pos[0] - (current_w - margin)) * 2.5
+                p.pos[0]  = min(current_w - 2, p.pos[0])
+
+            if p.pos[1] < margin:
+                p.vel[1] += (margin - p.pos[1]) * 2.5
+                p.pos[1]  = max(2, p.pos[1])
+            elif p.pos[1] > current_h - margin:
+                p.vel[1] -= (p.pos[1] - (current_h - margin)) * 2.5
+                p.pos[1]  = min(current_h - 2, p.pos[1])
                 p.pos[0] = np.clip(p.pos[0], 5, current_w - 5)
             if p.pos[1] < 0 or p.pos[1] > current_h:
                 p.vel[1] *= -0.82
@@ -277,7 +294,7 @@ while running:
         simulated_days = min(simulated_days + 1, 30)
         last_day_time = current_time
         if particles:
-            create_explosion(particles, current_w // 2, current_h // 2, count=25, intensity=0.7)
+            create_explosion(particles, current_w // 2, current_h // 2, count=25, intensity=0.7, microbe_key=current_microbe)
 
     # ========================
     # DIBUJAR

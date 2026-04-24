@@ -6,7 +6,7 @@
 import pygame
 
 # ------------------- ventana -------------------
-WIDTH, HEIGHT = 1280, 820
+WIDTH, HEIGHT = 1500, 820
 FPS = 60
 
 # ------------------- colores -------------------
