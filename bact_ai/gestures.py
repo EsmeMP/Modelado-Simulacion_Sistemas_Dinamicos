@@ -39,6 +39,7 @@ class GestureController:
         # Historial de dedos para estabilizar el conteo
         self._dedos_history   = []
         self._history_len     = 4       # frames para votar el gesto
+        self.pause_triggered = False
 
     # ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -179,8 +180,12 @@ class GestureController:
                     gesture_text = f"Humedad: {humidity:.0f}%"
 
             elif dedos_arriba == 2:
-                vortex_centers.append(hand_pos)
-                gesture_text = "VÓRTICE ACTIVADO"
+                if current_time - self.last_gesture_time > self.gesture_cooldown:
+                    self.pause_triggered = True
+                    self.last_gesture_time = current_time
+                    gesture_text = "⏸ Pausa/Reanudar"
+                else:
+                    gesture_text = "⏸ Pausa/Reanudar"
 
             elif dedos_arriba == 3:
                 normalized_y = 1.0 - (hy / current_h)

@@ -14,7 +14,7 @@ from config import *
 from microbes import get_all_microbes, get_microbe_data, calculate_growth_rate 
 from simulation import Particle, create_explosion, handle_collisions, update_bacteria_growth
 from gestures import GestureController
-from ui import Slider, PopulationGraph, draw_ui, CustomMicrobeForm
+from ui import Slider, PopulationGraph, draw_ui, CustomMicrobeForm, draw_ui_overlay
 from analysis import show_analysis
 
 
@@ -212,6 +212,10 @@ while running:
                 temp, humidity, ph, light, current_microbe
             )
 
+    if gesture_controller.pause_triggered:
+        paused = not paused
+        gesture_controller.pause_triggered = False
+        
     # Sincronizar sliders con valores de gestos
     temp_slider.update(temp)
     hum_slider.update(humidity)
@@ -237,12 +241,6 @@ while running:
                     total_force += force
                     p.glow = max(p.glow, 0.9)
 
-            for v_pos in vortex_centers:
-                direction = v_pos - p.pos
-                dist = np.linalg.norm(direction)
-                if dist > 10:
-                    perpendicular = np.array([-direction[1], direction[0]])
-                    p.vel += perpendicular * (780 / (dist + 30)) * dt
 
             p.update(total_force, dt)
             MAX_SPEED = 400.0
@@ -301,26 +299,31 @@ while running:
     # ========================
     # screen.fill(BLACK)
 
+
+
+    draw_ui(screen, temp, humidity, ph, light, nutrients, current_microbe,
+        simulated_days, particles, population_graph,
+        temp_slider, hum_slider, ph_slider, light_slider, nutrient_slider)
+
+
+
     # Trails
     if show_trails and len(particles) < 500:   
         for p in particles:
             speed = np.linalg.norm(p.vel)
-            if speed > 25:                     
+            if speed > 25:
                 trail_surf = pygame.Surface((6, 6), pygame.SRCALPHA)
-                alpha      = min(35, int(20 * (speed / 200)))
+                alpha = min(35, int(20 * (speed / 200)))
                 pygame.draw.circle(trail_surf, (*p.color[:3], alpha), (3, 3), 3)
                 screen.blit(trail_surf, (int(p.pos[0]) - 3, int(p.pos[1]) - 3))
-
-
-
-    draw_ui(screen, temp, humidity, ph, light, nutrients, current_microbe, simulated_days,
-            particles, population_graph,
-            temp_slider, hum_slider, ph_slider, light_slider, nutrient_slider)
     
-
     for p in particles:
         p.draw(screen)
 
+    # 4. Paneles ENCIMA de bacterias  ← NUEVO
+    draw_ui_overlay(screen, temp, humidity, ph, light, nutrients, current_microbe,
+                    simulated_days, particles, population_graph,
+                    temp_slider, hum_slider, ph_slider, light_slider, nutrient_slider)
 
     # Texto de gesto grande
     if any(w in gesture_text for w in ["Temp", "Humedad", "pH", "Luz", "Microbio", "Antibiótico", "Nutrientes"]):
@@ -350,6 +353,7 @@ while running:
 
     if cv2.waitKey(1) == 27:
         running = False
+
 
 # ========================
 # FINALIZACIÓN

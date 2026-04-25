@@ -10,7 +10,7 @@ from config import *
 from microbes import get_microbe_data
 
 # ── Constantes de layout ──────────────────────────────────────────────────────
-PANEL_ALPHA  = 50        # más opaco 
+PANEL_ALPHA  = 130        # más opaco 
 SIDEBAR_W    = 320        # ancho panel izquierdo
 GRAPH_H      = 200        # altura gráfica inferior
 GRAPH_MARGIN = 45         # margen para ejes Y y X
@@ -327,7 +327,7 @@ class CustomMicrobeForm:
 
         sw, sh = surface.get_size()
         overlay = pygame.Surface((sw, sh), pygame.SRCALPHA)
-        overlay.fill((0, 0, 0, 200))
+        overlay.fill((0, 0, 0, 100))
         surface.blit(overlay, (0, 0))
 
         if self.form_state == FORM_ERRORS:
@@ -439,7 +439,7 @@ class PopulationGraph:
 
         # ── Fondo del panel ──
         bg = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
-        pygame.draw.rect(bg, (8, 8, 20, PANEL_ALPHA),
+        pygame.draw.rect(bg, (5, 5, 12, 200),
                          (0, 0, self.width, self.height), border_radius=10)
         surface.blit(bg, (self.x, self.y))
         pygame.draw.rect(surface, (70, 70, 100),
@@ -524,7 +524,7 @@ class PopulationGraph:
 def _draw_panel_bg(surface, x, y, w, h, border_color,
                    alpha=PANEL_ALPHA, radius=14):
     bg = pygame.Surface((w, h), pygame.SRCALPHA)
-    pygame.draw.rect(bg, (8, 8, 18, alpha), (0, 0, w, h), border_radius=radius)
+    pygame.draw.rect(bg, (5, 5, 12, alpha), (0, 0, w, h), border_radius=radius)
     surface.blit(bg, (x, y))
     pygame.draw.rect(surface, border_color, (x, y, w, h), 2, border_radius=radius)
 
@@ -635,7 +635,7 @@ def draw_controls_help(surface, current_w, current_h):
     px   = current_w - pw - 8
     py   = current_h - ph_p - 18   # un poco más arriba de la barra de nutrientes
 
-    _draw_panel_bg(surface, px, py, pw, ph_p, (60, 60, 90), alpha=PANEL_ALPHA)
+    _draw_panel_bg(surface, px, py, pw, ph_p, (60, 60, 90), alpha=200)
 
     for idx, line in enumerate(lines):
         surface.blit(font.render(line, True, LIGHT_GRAY),
@@ -649,10 +649,8 @@ def draw_controls_help(surface, current_w, current_h):
 def draw_ui(surface, temp, humidity, ph, light, nutrients, current_microbe,
             simulated_days, particles, population_graph,
             temp_slider, hum_slider, ph_slider, light_slider, nutrient_slider):
-
     current_w, current_h = surface.get_size()
-
-    # 1. Fondo negro + barra nutrientes
+    # Solo el fondo — los paneles van después de las bacterias
     draw_nutrient_background(surface, nutrients, current_w, current_h)
 
     # 2. Panel info — lateral izquierdo
@@ -681,4 +679,32 @@ def draw_ui(surface, temp, humidity, ph, light, nutrients, current_microbe,
         population_graph.draw(surface)
 
     # 5. Controles — esquina inferior derecha
+    draw_controls_help(surface, current_w, current_h)
+
+def draw_ui_overlay(surface, temp, humidity, ph, light, nutrients, current_microbe,
+                    simulated_days, particles, population_graph,
+                    temp_slider, hum_slider, ph_slider, light_slider, nutrient_slider):
+    """Solo los paneles — se llama DESPUÉS de dibujar las bacterias."""
+    current_w, current_h = surface.get_size()
+
+    draw_info_panel(surface, temp, humidity, ph, light, nutrients,
+                    current_microbe, simulated_days, particles)
+
+    slider_panel_w = 370
+    slider_panel_x = current_w - slider_panel_w - 8
+    draw_sliders_panel(surface, temp_slider, hum_slider,
+                       ph_slider, light_slider, nutrient_slider,
+                       slider_panel_x, 8, slider_panel_w)
+
+    controls_w = 438
+    graph_x    = SIDEBAR_W + 5
+    graph_w    = current_w - graph_x - controls_w - 16
+    graph_y    = current_h - GRAPH_H - 12
+    if graph_w > 200:
+        population_graph.x      = graph_x
+        population_graph.y      = graph_y
+        population_graph.width  = graph_w
+        population_graph.height = GRAPH_H
+        population_graph.draw(surface)
+
     draw_controls_help(surface, current_w, current_h)
