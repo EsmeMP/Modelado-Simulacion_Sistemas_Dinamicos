@@ -163,52 +163,58 @@ class GestureController:
             # ── GESTOS ──────────────────────────────────────────────────────
 
             if dedos_arriba == 1:
-                # Y normalizada: arriba=1.0, abajo=0.0
                 normalized_y = 1.0 - (hy / current_h)
                 if hx < current_w // 2:
-                    # Izquierda → Temperatura (suavizado)
+                    # Izquierda → Temperatura
                     target = float(np.clip(normalized_y * 60, 0, 60))
                     self._smooth_temp = self._smooth(self._smooth_temp, target)
                     temp = self._smooth_temp
                     gesture_text = f"Temp: {temp:.1f}°C"
                 else:
-                    # Derecha → Humedad (suavizado)
+                    # Derecha → Humedad
                     target = float(np.clip(normalized_y * 95 + 5, 5, 100))
-                    self._smooth_humidity = self._smooth(
-                        self._smooth_humidity, target)
+                    self._smooth_humidity = self._smooth(self._smooth_humidity, target)
                     humidity = self._smooth_humidity
                     gesture_text = f"Humedad: {humidity:.0f}%"
 
-            elif dedos_arriba == 2:
-                if current_time - self.last_gesture_time > self.gesture_cooldown:
-                    self.pause_triggered = True
-                    self.last_gesture_time = current_time
-                    gesture_text = "⏸ Pausa/Reanudar"
-                else:
-                    gesture_text = "⏸ Pausa/Reanudar"
-
             elif dedos_arriba == 3:
+                # 3 dedos → Nutrientes (ambas manos)
                 normalized_y = 1.0 - (hy / current_h)
-                target = float(np.clip(normalized_y * 5 + 4, 4.0, 9.0))
-                self._smooth_ph = self._smooth(self._smooth_ph, target)
-                ph = self._smooth_ph
-                gesture_text = f"pH: {ph:.2f}"
+                target = float(np.clip(normalized_y * 100, 0, 100))
+                gesture_text = f"Nutrientes: {target:.0f}%"
+                # Retornamos el valor directo via nutrients (necesita variable externa)
+                # Lo manejamos devolviendo en gesture_text con prefijo especial
+                gesture_text = f"Nutrientes:{target:.1f}"
 
             elif dedos_arriba == 4:
                 normalized_y = 1.0 - (hy / current_h)
-                target = float(np.clip(normalized_y * 100, 0, 100))
-                self._smooth_light = self._smooth(self._smooth_light, target)
-                light = self._smooth_light
-                gesture_text = f"Luz UV: {light:.0f}%"
+                if hx < current_w // 2:
+                    # 4 izquierda → pH
+                    target = float(np.clip(normalized_y * 5 + 4, 4.0, 9.0))
+                    self._smooth_ph = self._smooth(self._smooth_ph, target)
+                    ph = self._smooth_ph
+                    gesture_text = f"pH: {ph:.2f}"
+                else:
+                    # 4 derecha → pH también (consistencia)
+                    target = float(np.clip(normalized_y * 100, 0, 100))   # ← rango de luz
+                    self._smooth_light = self._smooth(self._smooth_light, target)  # ← actualiza light
+                    light = self._smooth_light
+                    gesture_text = f"Luz UV: {light:.0f}%"
 
-            elif thumb_up_strict:
-                if current_time - self.last_gesture_time > self.gesture_cooldown:
-                    gesture_text = "¡+1 Día simulado!"
-                    self.last_gesture_time = current_time
-
-            elif dedos_arriba == 0:
-                gesture_text = "Repulsión activa"
-
+            elif dedos_arriba == 5:
+                normalized_y = 1.0 - (hy / current_h)
+                if hx < current_w // 2:
+                    # 5 izquierda → pH
+                    target = float(np.clip(normalized_y * 5 + 4, 4.0, 9.0))
+                    self._smooth_ph = self._smooth(self._smooth_ph, target)
+                    ph = self._smooth_ph
+                    gesture_text = f"pH: {ph:.2f}"
+                else:
+                    # 5 derecha → Luz UV
+                    target = float(np.clip(normalized_y * 100, 0, 100))
+                    self._smooth_light = self._smooth(self._smooth_light, target)
+                    light = self._smooth_light
+                    gesture_text = f"Luz UV: {light:.0f}%"
             is_attract = dedos_arriba >= 1
             hand_forces.append((hand_pos, is_attract, dist_thumb_index))
 

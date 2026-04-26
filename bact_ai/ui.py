@@ -680,7 +680,7 @@ def draw_controls_help(surface, current_w, current_h):
     lines = [
         "1 dedo Izq → Temp   |  1 dedo Der → Humd.",
         "3 dedos → pH        |  4 dedos → Luz UV",
-        "← → Microbio  |  Pulgar ↑ → +1 Día",
+        "← → Microbio ",
         "B Antibiótico  |  N Custom  |  F Nutrientes",
         "M Análisis  |  Espacio Pausa  |  R Reiniciar",
     ]

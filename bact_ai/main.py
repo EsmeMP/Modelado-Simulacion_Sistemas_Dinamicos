@@ -145,7 +145,7 @@ while running:
                 _pause_start   = 0
                 simulation_history.clear()
                 population_graph.history.clear()
-                stress_graph.history.clear()
+                # stress_graph.history.clear()
 
             elif event.key == pygame.K_b:
                 for p in particles:
@@ -251,6 +251,15 @@ while running:
             _paused_accum += pygame.time.get_ticks() - _pause_start
         gesture_controller.pause_triggered = False
 
+
+    if gesture_text.startswith("Nutrientes:"):
+        try:
+            nutrients = float(gesture_text.split(":")[1])
+            nutrient_slider.update(nutrients)
+            gesture_text = f"Nutrientes: {nutrients:.0f}%"
+        except:
+            pass
+
     # Sincronizar sliders
     temp_slider.update(temp)
     hum_slider.update(humidity)
@@ -309,7 +318,7 @@ while running:
             handle_collisions(particles)
 
         population_graph.update(len(particles))
-        stress_graph.update(particles)
+        # stress_graph.update(particles)
 
         # Historial de población (para análisis)
         if not simulation_history or pygame.time.get_ticks() % HISTORY_SAMPLE == 0:
