@@ -315,6 +315,108 @@ class StressGraph:
             s = font.render(label, True, col)
             surface.blit(s, (gx, ly))
             gx += s.get_width() + 18
+
+class InvasionGraph:
+    """
+    Muestra en tiempo real la dinámica Lotka-Volterra:
+      · Línea verde  = bacterias nativas
+      · Línea roja   = bacterias invasoras
+      · Línea blanca = total
+    Solo se dibuja cuando hay invasión activa.
+    """
+    MAX_HIST = 300
+ 
+    def __init__(self):
+        self.history = []          # [(n_nativas, n_invasoras), ...]
+ 
+    def update(self, particles, current_microbe):
+        nat = sum(1 for p in particles
+                  if p.is_bacteria and p.microbe_key == current_microbe)
+        inv = sum(1 for p in particles
+                  if p.is_bacteria and p.microbe_key != current_microbe
+                  and p.state != "dead")
+        self.history.append((nat, inv))
+        if len(self.history) > self.MAX_HIST:
+            self.history.pop(0)
+ 
+    def clear(self):
+        self.history.clear()
+ 
+    def draw(self, surface, x, y, w, h, microbe_name="Nativas", invader_name="Invasoras"):
+        if len(self.history) < 2:
+            return
+ 
+        # Comprobar que hay algo de invasión en el historial
+        has_invasion = any(m > 0 for _, m in self.history)
+        if not has_invasion:
+            return
+ 
+        bg = pygame.Surface((w, h), pygame.SRCALPHA)
+        pygame.draw.rect(bg, (10, 5, 5, 210), (0, 0, w, h), border_radius=10)
+        surface.blit(bg, (x, y))
+        pygame.draw.rect(surface, (140, 40, 40), (x, y, w, h), 2, border_radius=10)
+ 
+        # Título
+        surface.blit(font.render("Competencia Lotka-Volterra", True, (255, 180, 180)),
+                     (x + 8, y + 6))
+ 
+        gx = x + 8;  gy = y + 26
+        gw = w - 16; gh = h - 50
+ 
+        max_val = max(
+            max(n for n, _ in self.history or [(1, 0)]),
+            max(m for _, m in self.history or [(0, 1)]),
+            1
+        ) * 1.1
+ 
+        n_pts = len(self.history)
+ 
+        def _line(values, color, lw=2):
+            pts = []
+            for i, v in enumerate(values):
+                px2 = gx + int(i / (n_pts - 1) * gw)
+                py2 = gy + gh - int((v / max_val) * gh)
+                py2 = max(gy, min(gy + gh, py2))
+                pts.append((px2, py2))
+            if len(pts) > 1:
+                pygame.draw.lines(surface, color, False, pts, lw)
+ 
+        nat_vals = [n for n, _ in self.history]
+        inv_vals = [m for _, m in self.history]
+        tot_vals = [n + m for n, m in self.history]
+ 
+        _line(nat_vals, (50, 220, 80),  2)   # verde — nativas
+        _line(inv_vals, (255, 60, 60),  2)   # rojo  — invasoras
+        _line(tot_vals, (200, 200, 200), 1)  # blanco — total
+ 
+        # Ejes
+        pygame.draw.line(surface, (100, 100, 130), (gx, gy), (gx, gy + gh), 1)
+        pygame.draw.line(surface, (100, 100, 130), (gx, gy + gh), (gx + gw, gy + gh), 1)
+ 
+        # Valores actuales
+        last_n, last_m = self.history[-1]
+        ratio = last_m / (last_n + last_m) if (last_n + last_m) > 0 else 0.0
+        bar_y = y + h - 18
+        bar_w_total = w - 16
+ 
+        # Barra de proporción invasoras vs nativas
+        pygame.draw.rect(surface, (40, 60, 40),
+                         (x + 8, bar_y, bar_w_total, 10), border_radius=4)
+        pygame.draw.rect(surface, (255, 60, 60),
+                         (x + 8, bar_y, int(bar_w_total * ratio), 10), border_radius=4)
+ 
+        # Texto leyenda
+        ly = gy + gh + 4
+        _gx = gx
+        for label, col in [
+            (f"N:{last_n}", (50, 220, 80)),
+            (f"I:{last_m}", (255, 90, 90)),
+            (f"{ratio*100:.0f}%inv", (255, 160, 160)),
+        ]:
+            s = font.render(label, True, col)
+            surface.blit(s, (_gx, ly))
+            _gx += s.get_width() + 14
+ 
 class CustomMicrobeForm:
     FIELDS = [
         ("clave",            "Nombre clave (ej: MiBact)",                      str),
@@ -570,15 +672,15 @@ class CustomMicrobeForm:
         px = (sw - pw) // 2; py = (sh - ph_panel) // 2
         pygame.draw.rect(surface, (20, 10, 10), (px, py, pw, ph_panel), border_radius=16)
         pygame.draw.rect(surface, RED,          (px, py, pw, ph_panel), 2, border_radius=16)
-        surface.blit(big_font.render("⚠ Errores detectados", True, RED), (px + 20, py + 18))
+        surface.blit(big_font.render("Errores detectados", True, RED), (px + 20, py + 18))
         y_e = py + 60
         for err in self.detected_errors[:6]:
             surface.blit(font.render(f"  • {err}", True, YELLOW), (px + 20, y_e))
             y_e += 26
         pygame.draw.line(surface, GRAY, (px + 20, y_e + 10), (px + pw - 20, y_e + 10), 1)
-        options = [(self.OPT_AUTO, "✔  Ajustar automáticamente", GREEN),
-                   (self.OPT_EDIT, "✏  Editar manualmente", CYAN),
-                   (self.OPT_CANCEL, "✗  Cancelar", RED)]
+        options = [(self.OPT_AUTO, "Ajustar automáticamente", GREEN),
+                   (self.OPT_EDIT, "Editar manualmente", CYAN),
+                   (self.OPT_CANCEL, "Cancelar", RED)]
         y_opt = y_e + 30
         for opt_id, label, col in options:
             selected = self.error_option == opt_id
@@ -618,7 +720,7 @@ def draw_info_panel(surface, temp, humidity, ph, light, nutrients,
     total    = len(particles)
 
     pw   = SIDEBAR_W - 10
-    ph_p = 295
+    ph_p = 380
     px, py = 8, 8
 
     _draw_panel_bg(surface, px, py, pw, ph_p, color, alpha=PANEL_ALPHA)
@@ -666,8 +768,8 @@ def draw_info_panel(surface, temp, humidity, ph, light, nutrients,
 
     if invaders > 0:
         surface.blit(font.render(f"Total: {total}",        True, WHITE),  (px + 14, y_row))
-        surface.blit(font.render(f"✔ {healthy}",           True, GREEN),  (px + 130, y_row))
-        surface.blit(font.render(f"⚠ {stressed}",          True, ORANGE), (px + 195, y_row))
+        surface.blit(font.render(f"{healthy}",           True, GREEN),  (px + 130, y_row))
+        surface.blit(font.render(f"{stressed}",          True, ORANGE), (px + 195, y_row))
         y_row += 24
         surface.blit(font.render(f"Nativas:  {natives}",   True, color),      (px + 14, y_row))
         y_row += 22
@@ -682,11 +784,11 @@ def draw_info_panel(surface, temp, humidity, ph, light, nutrients,
         surface.blit(pct, (px + 14, y_row + 10))
     else:
         surface.blit(font.render(f"Total: {total}", True, WHITE),  (px + 14, y_row))
-        surface.blit(font.render(f"✔ {healthy}",   True, GREEN),   (px + 130, y_row))
-        surface.blit(font.render(f"⚠ {stressed}",  True, ORANGE),  (px + 195, y_row))
+        surface.blit(font.render(f"{healthy}",   True, GREEN),   (px + 130, y_row))
+        surface.blit(font.render(f"{stressed}",  True, ORANGE),  (px + 195, y_row))
         surface.blit(font.render(f"Total: {total}",            True, WHITE),        (px + 14, y_row))
-        surface.blit(font.render(f"✔ {healthy}",               True, GREEN),        (px + 130, y_row))
-        surface.blit(font.render(f"⚠ {stressed}",              True, ORANGE),       (px + 195, y_row))
+        surface.blit(font.render(f"{healthy}",               True, GREEN),        (px + 130, y_row))
+        surface.blit(font.render(f"{stressed}",              True, ORANGE),       (px + 195, y_row))
         y_row += 24
         surface.blit(font.render(f"Nativas:  {natives}",       True, color),        (px + 14, y_row))
         y_row += 22
@@ -707,9 +809,9 @@ def draw_info_panel(surface, temp, humidity, ph, light, nutrients,
 def draw_sliders_panel(surface, temp_slider, hum_slider,
                         ph_slider, light_slider, nutrient_slider,
                         panel_x, panel_y, panel_w):
-    # ph_p = 185
+    ph_p = 185
     import simulation as _sim_mod
-    ph_p = 355 if _sim_mod.invasion_active else 295
+    # ph_p = 355 if _sim_mod.invasion_active else 295
     _draw_panel_bg(surface, panel_x, panel_y, panel_w, ph_p,
                    (70, 70, 100), alpha=PANEL_ALPHA)
     sx     = panel_x + 95
@@ -801,19 +903,21 @@ def draw_ui(surface, temp, humidity, ph, light, nutrients, current_microbe,
 
 def draw_ui_overlay(surface, temp, humidity, ph, light, nutrients, current_microbe,
                     simulated_days, particles, population_graph, stress_graph,
-                    temp_slider, hum_slider, ph_slider, light_slider, nutrient_slider):
+                    temp_slider, hum_slider, ph_slider, light_slider, nutrient_slider,
+                    invasion_graph=None):
     """Todos los paneles HUD + overlay inanición — llamar DESPUÉS de las bacterias."""
+    import simulation as _sim_mod
     current_w, current_h = surface.get_size()
-
+ 
     draw_info_panel(surface, temp, humidity, ph, light, nutrients,
                     current_microbe, simulated_days, particles)
-
+ 
     slider_panel_w = 370
     slider_panel_x = current_w - slider_panel_w - 8
     draw_sliders_panel(surface, temp_slider, hum_slider,
                        ph_slider, light_slider, nutrient_slider,
                        slider_panel_x, 8, slider_panel_w)
-
+ 
     controls_w = 438
     graph_x    = SIDEBAR_W + 5
     graph_w    = current_w - graph_x - controls_w - 16
@@ -824,15 +928,31 @@ def draw_ui_overlay(surface, temp, humidity, ph, light, nutrients, current_micro
         population_graph.width  = graph_w
         population_graph.height = GRAPH_H
         population_graph.draw(surface)
-        stress_graph.draw(surface, 8, current_h - GRAPH_H - 12, SIDEBAR_W - 16, GRAPH_H)
-
+ 
+    # ── Panel izquierdo inferior: invasión activa → LV, sino stress ──────
+    left_graph_x = 8
+    left_graph_y = current_h - GRAPH_H - 12
+    left_graph_w = SIDEBAR_W - 16
+    left_graph_h = GRAPH_H
+ 
+    if (_sim_mod.invasion_active
+            and invasion_graph is not None
+            and len(invasion_graph.history) >= 2):
+        invasion_graph.draw(surface,
+                            left_graph_x, left_graph_y,
+                            left_graph_w, left_graph_h,
+                            microbe_name=current_microbe,
+                            invader_name=_sim_mod.invasion_key or "Invasoras")
+    else:
+        stress_graph.draw(surface,
+                          left_graph_x, left_graph_y,
+                          left_graph_w, left_graph_h)
+ 
     draw_controls_help(surface, current_w, current_h)
-
-    # ── Overlay de estrés máximo cuando nutrientes = 0 ──
+ 
     if nutrients <= 0:
         _draw_starvation_overlay(surface, current_w, current_h, particles)
-
-    # Línea de escaneo CRT sutil
+ 
     scan_y = (_frame_counter * 2) % current_h
     scan_s = pygame.Surface((current_w, 2), pygame.SRCALPHA)
     scan_s.fill((0, 200, 255, 8))
