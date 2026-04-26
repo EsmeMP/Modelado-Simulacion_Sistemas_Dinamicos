@@ -17,6 +17,9 @@ from gestures import GestureController
 from ui import Slider, PopulationGraph, draw_ui, CustomMicrobeForm, draw_ui_overlay, StressGraph
 from analysis import show_analysis
 
+from simulation import Particle, create_explosion, handle_collisions, update_bacteria_growth, contaminate
+from microbes import get_all_microbes, get_microbe_data, calculate_growth_rate, get_invader
+
 
 # ========================
 # INICIALIZACIÓN
@@ -148,11 +151,32 @@ while running:
                 # stress_graph.history.clear()
 
             elif event.key == pygame.K_b:
-                for p in particles:
-                    if p.is_bacteria:
-                        p.state = "stressed"
-                        p.stress_timer = 120
-                gesture_text = "¡Antibiótico aplicado!"
+                import simulation as _sim_mod
+
+                # Fuente de verdad: buscar directamente en partículas, no en flags globales
+                invasoras_vivas = [p for p in particles
+                                if p.is_bacteria
+                                and p.microbe_key != current_microbe
+                                and p.state != "dead"]
+
+                if invasoras_vivas:
+                    antes = len(particles)
+                    # Eliminar solo invasoras (y sus partículas de explosión propias no importan)
+                    particles[:] = [p for p in particles
+                                    if not (p.is_bacteria and p.microbe_key != current_microbe)]
+                    eliminadas = antes - len(particles)
+                    _sim_mod.invasion_active = False
+                    _sim_mod.invasion_key    = None
+                    gesture_text = f"Antibiótico: -{eliminadas} invasoras"
+                else:
+                    # Sin invasoras activas — antibiótico elimina nativas
+                    antes = len(particles)
+                    particles[:] = [p for p in particles
+                                    if not (p.is_bacteria and p.microbe_key == current_microbe)]
+                    eliminadas = antes - len(particles)
+                    _sim_mod.invasion_active = False
+                    _sim_mod.invasion_key    = None
+                    gesture_text = f"¡Antibiótico! -{eliminadas} bacterias"
 
             elif event.key == pygame.K_f:
                 nutrients = MAX_NUTRIENTS
@@ -173,6 +197,12 @@ while running:
 
             elif event.key == pygame.K_n:
                 custom_form.toggle()
+
+            elif event.key == pygame.K_i:
+                invader = get_invader(current_microbe)
+                contaminate(particles, current_w, current_h,
+                            invader_key=invader, count=30)
+                gesture_text = f"¡Invasión de {invader}!"
 
             elif event.key == pygame.K_RIGHT:
                 keys = get_all_microbes()
@@ -227,13 +257,15 @@ while running:
                 )
                 gesture_text = f"Análisis abierto — día {simulated_days:.2f}"
 
-    # ------------------- Gestos -------------------
+
+# ------------------- Gestos -------------------
     frame, result = gesture_controller.get_frame()
     if frame is None:
         break
 
     hand_forces    = []
     vortex_centers = []
+    _kb_gesture    = gesture_text  # guardar texto de teclado
 
     if result and not custom_form.active:
         frame = gesture_controller.draw_landmarks(frame, result)
@@ -242,6 +274,9 @@ while running:
                 result, current_w, current_h,
                 temp, humidity, ph, light, current_microbe
             )
+        # Preservar texto de teclado importante
+        if any(w in _kb_gesture for w in ["Antibiótico", "Invasión", "Extinción", "Nutrientes repuestos"]):
+            gesture_text = _kb_gesture
 
     if gesture_controller.pause_triggered:
         paused = not paused
@@ -250,7 +285,6 @@ while running:
         else:
             _paused_accum += pygame.time.get_ticks() - _pause_start
         gesture_controller.pause_triggered = False
-
 
     if gesture_text.startswith("Nutrientes:"):
         try:
@@ -364,7 +398,7 @@ while running:
     
     # 5. Texto de gesto
     if any(w in gesture_text for w in
-           ["Temp", "Humedad", "pH", "Luz", "Microbio", "Antibiótico", "Nutrientes"]):
+           ["Temp", "Humedad", "pH", "Luz", "Microbio", "Antibiótico", "Nutrientes", "Invasión", "Extinción"]):
         gesture_font = pygame.font.SysFont("Arial", 28)
         gesture_surf = gesture_font.render(gesture_text, True, PURPLE)
         screen.blit(gesture_surf,

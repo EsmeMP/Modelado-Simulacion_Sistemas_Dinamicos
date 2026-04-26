@@ -655,15 +655,61 @@ def draw_info_panel(surface, temp, humidity, ph, light, nutrients,
     pygame.draw.line(surface, (60, 60, 80),
                      (px + 10, y_row), (px + pw - 10, y_row), 1)
     y_row += 8
-    surface.blit(font.render(f"Total: {total}", True, WHITE),  (px + 14, y_row))
-    surface.blit(font.render(f"✔ {healthy}",   True, GREEN),   (px + 110, y_row))
-    surface.blit(font.render(f"⚠ {stressed}",  True, ORANGE),  (px + 190, y_row))
+
+    # Conteo por tipo de bacteria
+    import simulation as _sim_mod
+    natives  = sum(1 for p in particles if p.is_bacteria and p.microbe_key == current_microbe)
+    invaders = sum(1 for p in particles 
+                if p.is_bacteria 
+                and p.microbe_key != current_microbe
+                and p.state != "dead")
+
+    if invaders > 0:
+        surface.blit(font.render(f"Total: {total}",        True, WHITE),  (px + 14, y_row))
+        surface.blit(font.render(f"✔ {healthy}",           True, GREEN),  (px + 130, y_row))
+        surface.blit(font.render(f"⚠ {stressed}",          True, ORANGE), (px + 195, y_row))
+        y_row += 24
+        surface.blit(font.render(f"Nativas:  {natives}",   True, color),      (px + 14, y_row))
+        y_row += 22
+        inv_col = (255, 60, 60)
+        surface.blit(font.render(f"Invasoras: {invaders}", True, inv_col),    (px + 14, y_row))
+        y_row += 22
+        bar_w_total = pw - 28
+        ratio = invaders / total if total > 0 else 0.0
+        pygame.draw.rect(surface, (40, 40, 50),  (px + 14, y_row, bar_w_total, 8), border_radius=4)
+        pygame.draw.rect(surface, inv_col, (px + 14, y_row, int(bar_w_total * ratio), 8), border_radius=4)
+        pct = font.render(f"{ratio*100:.0f}% invasión", True, inv_col if ratio > 0.4 else LIGHT_GRAY)
+        surface.blit(pct, (px + 14, y_row + 10))
+    else:
+        surface.blit(font.render(f"Total: {total}", True, WHITE),  (px + 14, y_row))
+        surface.blit(font.render(f"✔ {healthy}",   True, GREEN),   (px + 130, y_row))
+        surface.blit(font.render(f"⚠ {stressed}",  True, ORANGE),  (px + 195, y_row))
+        surface.blit(font.render(f"Total: {total}",            True, WHITE),        (px + 14, y_row))
+        surface.blit(font.render(f"✔ {healthy}",               True, GREEN),        (px + 130, y_row))
+        surface.blit(font.render(f"⚠ {stressed}",              True, ORANGE),       (px + 195, y_row))
+        y_row += 24
+        surface.blit(font.render(f"Nativas:  {natives}",       True, color),        (px + 14, y_row))
+        y_row += 22
+        inv_col = (255, 60, 60)
+        surface.blit(font.render(f"Invasoras: {invaders}",     True, inv_col),      (px + 14, y_row))
+        # Barra de proporción invasión
+        y_row += 22
+        bar_w_total = pw - 28
+        ratio = invaders / total if total > 0 else 0.0
+        pygame.draw.rect(surface, (40, 40, 50),  (px + 14, y_row, bar_w_total, 8), border_radius=4)
+        pygame.draw.rect(surface, inv_col,        (px + 14, y_row, int(bar_w_total * ratio), 8), border_radius=4)
+        pct = font.render(f"{ratio*100:.0f}% invasión", True, inv_col if ratio > 0.4 else LIGHT_GRAY)
+        surface.blit(pct, (px + 14, y_row + 10))
+    # else:
+    #     surface.blit(font.render(f"Total: {total}", True, WHITE),  (px + 14, y_row))
 
 
 def draw_sliders_panel(surface, temp_slider, hum_slider,
                         ph_slider, light_slider, nutrient_slider,
                         panel_x, panel_y, panel_w):
-    ph_p = 182
+    # ph_p = 185
+    import simulation as _sim_mod
+    ph_p = 355 if _sim_mod.invasion_active else 295
     _draw_panel_bg(surface, panel_x, panel_y, panel_w, ph_p,
                    (70, 70, 100), alpha=PANEL_ALPHA)
     sx     = panel_x + 95
@@ -680,7 +726,7 @@ def draw_controls_help(surface, current_w, current_h):
     lines = [
         "1 dedo Izq → Temp   |  1 dedo Der → Humd.",
         "3 dedos → pH        |  4 dedos → Luz UV",
-        "← → Microbio ",
+        "← → Microbio | I Invasión | E Modo Extinción",
         "B Antibiótico  |  N Custom  |  F Nutrientes",
         "M Análisis  |  Espacio Pausa  |  R Reiniciar",
     ]

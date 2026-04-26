@@ -11,6 +11,8 @@ from config import *
 from microbes import calculate_growth_rate, get_microbe_data
 
 extinction_mode = False
+invasion_active = False
+invasion_key    = None
 
 _capsule_cache = {} 
 def _get_capsule_surf(color, cap_w, cap_h, state):
@@ -64,6 +66,7 @@ class Particle:
         self.vel          = np.array([random.uniform(-90, 90), random.uniform(-90, 90)])
         self.state        = "healthy" if is_bacteria else "normal"
         self.age          = 0
+        self.max_age      = None if is_bacteria else 60  # ← partículas de explosión mueren en 60 frames
         self.collision_timer = 0
         self.glow         = 0.0
         self.stress_timer = 0
@@ -95,6 +98,8 @@ class Particle:
             self.collision_timer -= 1
         if self.glow > 0:
             self.glow *= 0.92
+        if self.max_age is not None and self.age >= self.max_age:
+            self.state = "dead"
 
     # ── Helpers de dibujo ──────────────────────────────────────────────────
 
@@ -373,16 +378,13 @@ def handle_collisions(particles, max_checks=700):
                 p1.collision_timer = p2.collision_timer = 3
 
 
+
 def update_bacteria_growth(particles, temp, humidity, ph, light, nutrients,
                            microbe_key, max_particles):
-    """
-    Actualiza crecimiento bacteriano con 5 factores.
-    Devuelve el nivel de nutrientes actualizado.
-    """
+    global invasion_active, invasion_key
+
     if not particles:
         return nutrients
-
-    growth_rate  = calculate_growth_rate(temp, humidity, ph, light, nutrients, microbe_key)
 
     if extinction_mode:
         for p in particles:
@@ -390,18 +392,65 @@ def update_bacteria_growth(particles, temp, humidity, ph, light, nutrients,
                 p.state = "dead"
         particles[:] = [p for p in particles if p.state != "dead"]
         return max(0.0, nutrients - 0.1)
-    
-    data         = get_microbe_data(microbe_key)
-    if not data:
+
+    # ── Detectar si hay invasores ─────────────────────────────────────────
+    total    = sum(1 for p in particles if p.is_bacteria)
+    # ✅ Reemplaza ese bloque por:
+    invaders = sum(1 for p in particles 
+                if p.is_bacteria 
+                and p.microbe_key != microbe_key
+                and p.state != "dead")
+    natives        = total - invaders
+    invasion_ratio = invaders / total if total > 0 else 0.0
+    invasion_active = invaders > 0
+
+    # Solo actualizar invasion_key si hay invasores, nunca resetear a None si quedan vivos
+    _found_key = None
+    for p in particles:
+        if p.is_bacteria and p.microbe_key != microbe_key and p.state != "dead":
+            _found_key = p.microbe_key
+            break
+    if _found_key is not None:
+        invasion_key = _found_key
+    elif invaders == 0:
+        invasion_key = None   # solo limpiar cuando realmente no queda ninguno vivo
+
+    # ── Datos de ambos tipos ──────────────────────────────────────────────
+    data_native  = get_microbe_data(microbe_key)
+    data_invader = get_microbe_data(invasion_key) if invasion_key else None
+    if not data_native:
         return nutrients
 
-    new_bacteria  = []
-    nutrient_cost = data.get("nutrient_consumption", 0.005)
+    growth_native  = calculate_growth_rate(temp, humidity, ph, light, nutrients, microbe_key)
+    growth_invader = calculate_growth_rate(temp, humidity, ph, light, nutrients, invasion_key) \
+                     if invasion_key else 0.0
+
+    nutrient_cost_native  = data_native.get("nutrient_consumption", 0.005)
+    nutrient_cost_invader = (data_invader.get("nutrient_consumption", 0.005) * 3.0) \
+                             if data_invader else 0.0  # invasor consume 3x
+
+    # ── Radio de toxinas ──────────────────────────────────────────────────
+    TOXIN_RADIUS   = 55.0
+    TOXIN_RADIUS_SQ = TOXIN_RADIUS ** 2
+    TOXIN_PROB     = 0.012   # prob por frame de envenenar a un nativo cercano
+    CASCADE_THRESH = 0.40    # si invasor > 40% → colapso acelerado
+
+    # Construir listas separadas para eficiencia
+    invader_positions = np.array([
+        p.pos for p in particles
+        if p.is_bacteria and p.microbe_key != microbe_key
+    ]) if invaders > 0 else None
+
+    new_bacteria = []
 
     for p in particles:
         if not p.is_bacteria:
             continue
 
+        is_invader = p.microbe_key != microbe_key
+        data       = data_invader if is_invader else data_native
+
+        # ── Estrés por temperatura y pH ───────────────────────────────────
         temp_ok = data["temp_range"][0] <= temp <= data["temp_range"][1]
         ph_ok   = data["ph_range"][0]   <= ph   <= data["ph_range"][1]
 
@@ -422,18 +471,72 @@ def update_bacteria_growth(particles, temp, humidity, ph, light, nutrients,
             p.state = "stressed"
             continue
 
+        # ── MECANISMO 1: Toxinas ──────────────────────────────────────────
+        # Los nativos cerca de invasores tienen prob de ser envenenados
+        if not is_invader and invader_positions is not None and len(invader_positions) > 0:
+            diff    = invader_positions - p.pos
+            dists_sq = (diff * diff).sum(axis=1)
+            nearby  = np.any(dists_sq < TOXIN_RADIUS_SQ)
+            if nearby and random.random() < TOXIN_PROB:
+                p.stress_timer += 8
+                p.state = "stressed"
+                p.glow  = 0.6   # brillo rojizo al ser envenenado
+
+        # ── MECANISMO 3: Cascada de colapso ──────────────────────────────
+        # Si invasor supera 40%, nativos se estresan más rápido
+        if not is_invader and invasion_ratio >= CASCADE_THRESH:
+            extra_stress = int((invasion_ratio - CASCADE_THRESH) * 20)
+            p.stress_timer += extra_stress
+            if p.stress_timer > 0:
+                p.state = "stressed"
+
+        if p.stress_timer > 180:
+            p.state = "dead"
+            continue
+
+        # ── Reproducción ─────────────────────────────────────────────────
         if p.state == "healthy":
+            growth = growth_invader if is_invader else growth_native
+            cost   = nutrient_cost_invader if is_invader else nutrient_cost_native
+
             if len(particles) + len(new_bacteria) < max_particles:
                 if len(new_bacteria) < 12:
-                    if random.random() < growth_rate:
+                    if random.random() < growth:
                         new_bacteria.append(Particle(
                             p.pos[0] + random.uniform(-25, 25),
                             p.pos[1] + random.uniform(-25, 25),
                             is_bacteria=True,
-                            microbe_key=microbe_key
+                            microbe_key=p.microbe_key  # ← hereda su propio tipo
                         ))
-                        nutrients -= nutrient_cost
+                        # ── MECANISMO 2: Competencia por nutrientes ───────
+                        nutrients -= cost  # invasor consume 3x más
 
     particles[:] = [p for p in particles if p.state != "dead"]
     particles.extend(new_bacteria)
     return max(0.0, nutrients)
+
+def contaminate(particles, current_w, current_h, invader_key, count=25):
+    """
+    Agrega bacterias invasoras en una zona aleatoria con efecto de invasión.
+    """
+    # Zona aleatoria de aparición (evita bordes)
+    zone_x = random.randint(current_w // 5, current_w * 4 // 5)
+    zone_y = random.randint(current_h // 5, current_h * 4 // 5)
+    zone_r = 80  # radio de la zona de invasión
+
+    for _ in range(count):
+        angle = random.uniform(0, 2 * math.pi)
+        dist  = random.uniform(0, zone_r)
+        x = zone_x + math.cos(angle) * dist
+        y = zone_y + math.sin(angle) * dist
+
+        p = Particle(x, y, is_bacteria=True, microbe_key=invader_key)
+        p.vel   = np.array([random.uniform(-120, 120),
+                            random.uniform(-120, 120)])
+        p.glow  = 1.5   # brillo máximo al aparecer
+        p.state = "healthy"
+        particles.append(p)
+
+    # Partículas de explosión visual en el centro de la zona
+    create_explosion(particles, zone_x, zone_y,
+                     count=18, intensity=0.5, microbe_key=invader_key)
