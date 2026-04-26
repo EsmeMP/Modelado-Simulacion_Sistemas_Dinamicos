@@ -10,6 +10,7 @@ import numpy as np
 from config import *
 from microbes import calculate_growth_rate, get_microbe_data
 
+extinction_mode = False
 
 _capsule_cache = {} 
 def _get_capsule_surf(color, cap_w, cap_h, state):
@@ -382,6 +383,14 @@ def update_bacteria_growth(particles, temp, humidity, ph, light, nutrients,
         return nutrients
 
     growth_rate  = calculate_growth_rate(temp, humidity, ph, light, nutrients, microbe_key)
+
+    if extinction_mode:
+        for p in particles:
+            if p.is_bacteria and random.random() < 0.08:
+                p.state = "dead"
+        particles[:] = [p for p in particles if p.state != "dead"]
+        return max(0.0, nutrients - 0.1)
+    
     data         = get_microbe_data(microbe_key)
     if not data:
         return nutrients

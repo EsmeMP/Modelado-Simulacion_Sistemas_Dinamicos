@@ -14,7 +14,7 @@ from config import *
 from microbes import get_all_microbes, get_microbe_data, calculate_growth_rate
 from simulation import Particle, create_explosion, handle_collisions, update_bacteria_growth
 from gestures import GestureController
-from ui import Slider, PopulationGraph, draw_ui, CustomMicrobeForm, draw_ui_overlay
+from ui import Slider, PopulationGraph, draw_ui, CustomMicrobeForm, draw_ui_overlay, StressGraph
 from analysis import show_analysis
 
 
@@ -69,6 +69,7 @@ nutrient_slider = Slider(450, 265, 280,  0,   100,   "Nutrientes (%)",      GREE
 population_graph   = PopulationGraph(780, 65, 460, 180)
 gesture_controller = GestureController()
 custom_form        = CustomMicrobeForm()
+stress_graph = StressGraph()
 
 # === AUXILIARES ===
 running       = True
@@ -89,6 +90,7 @@ while running:
     if not paused:
         elapsed_ms     = pygame.time.get_ticks() - _start_ticks - _paused_accum
         simulated_days = max(0.0, (elapsed_ms / 1000.0) / SECONDS_PER_DAY)
+        stress_graph.update(particles)
 
     # ------------------- Eventos -------------------
     for event in pygame.event.get():
@@ -143,6 +145,7 @@ while running:
                 _pause_start   = 0
                 simulation_history.clear()
                 population_graph.history.clear()
+                stress_graph.history.clear()
 
             elif event.key == pygame.K_b:
                 for p in particles:
@@ -306,6 +309,7 @@ while running:
             handle_collisions(particles)
 
         population_graph.update(len(particles))
+        stress_graph.update(particles)
 
         # Historial de población (para análisis)
         if not simulation_history or pygame.time.get_ticks() % HISTORY_SAMPLE == 0:
@@ -327,7 +331,7 @@ while running:
 
     # 1. Fondo
     draw_ui(screen, temp, humidity, ph, light, nutrients, current_microbe,
-            simulated_days, particles, population_graph,
+            simulated_days, particles, population_graph, stress_graph,
             temp_slider, hum_slider, ph_slider, light_slider, nutrient_slider)
 
     # 2. Trails
@@ -346,9 +350,9 @@ while running:
 
     # 4. Paneles encima de todo
     draw_ui_overlay(screen, temp, humidity, ph, light, nutrients, current_microbe,
-                    simulated_days, particles, population_graph,
+                    simulated_days, particles, population_graph,stress_graph,
                     temp_slider, hum_slider, ph_slider, light_slider, nutrient_slider)
-
+    
     # 5. Texto de gesto
     if any(w in gesture_text for w in
            ["Temp", "Humedad", "pH", "Luz", "Microbio", "Antibiótico", "Nutrientes"]):

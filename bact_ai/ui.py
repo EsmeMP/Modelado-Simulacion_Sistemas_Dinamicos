@@ -250,7 +250,71 @@ class PopulationGraph:
 FORM_FILLING = "filling"
 FORM_ERRORS  = "errors"
 
+class StressGraph:
+    def __init__(self):
+        self.history_healthy  = []
+        self.history_stressed = []
+        self.history_dead     = []
 
+    def update(self, particles):
+        healthy  = sum(1 for p in particles if p.state == "healthy")
+        stressed = sum(1 for p in particles if p.state == "stressed")
+        dead     = sum(1 for p in particles if p.state == "dead")
+        self.history_healthy.append(healthy)
+        self.history_stressed.append(stressed)
+        self.history_dead.append(dead)
+        for hist in (self.history_healthy, self.history_stressed, self.history_dead):
+            if len(hist) > 300:
+                hist.pop(0)
+
+    def draw(self, surface, x, y, w, h):
+        if len(self.history_healthy) < 2:
+            return
+
+        bg = pygame.Surface((w, h), pygame.SRCALPHA)
+        pygame.draw.rect(bg, (5, 5, 12, 200), (0, 0, w, h), border_radius=10)
+        surface.blit(bg, (x, y))
+        pygame.draw.rect(surface, (70, 70, 100), (x, y, w, h), 2, border_radius=10)
+
+        surface.blit(font.render("Estado bacteriano", True, WHITE), (x + 8, y + 6))
+
+        gx = x + 8
+        gy = y + 26
+        gw = w - 16
+        gh = h - 46
+
+        max_val = max(
+            max(self.history_healthy  or [1]),
+            max(self.history_stressed or [1]),
+            1
+        ) * 1.1
+
+        def draw_line(history, color):
+            if len(history) < 2:
+                return
+            pts = []
+            n = len(history)
+            for i, val in enumerate(history):
+                px2 = gx + int(i / (n - 1) * gw)
+                py2 = gy + gh - int((val / max_val) * gh)
+                py2 = max(gy, min(gy + gh, py2))
+                pts.append((px2, py2))
+            pygame.draw.lines(surface, color, False, pts, 2)
+
+        draw_line(self.history_healthy,  (50, 220, 80))   # verde
+        draw_line(self.history_stressed, (255, 160, 30))  # naranja
+        draw_line(self.history_dead,     (220, 50, 50))   # rojo
+
+        # Eje
+        pygame.draw.line(surface, (100, 100, 130), (gx, gy), (gx, gy + gh), 1)
+        pygame.draw.line(surface, (100, 100, 130), (gx, gy + gh), (gx + gw, gy + gh), 1)
+
+        # Leyenda
+        ly = y + h - 16
+        for label, col in [("Sanas", (50,220,80)), ("Estres",(255,160,30)), ("Muertas",(220,50,50))]:
+            s = font.render(label, True, col)
+            surface.blit(s, (gx, ly))
+            gx += s.get_width() + 18
 class CustomMicrobeForm:
     FIELDS = [
         ("clave",            "Nombre clave (ej: MiBact)",                      str),
@@ -614,7 +678,7 @@ def draw_sliders_panel(surface, temp_slider, hum_slider,
 
 def draw_controls_help(surface, current_w, current_h):
     lines = [
-        "1 dedo Izq → Temp   |  1 dedo Der → Humedad",
+        "1 dedo Izq → Temp   |  1 dedo Der → Humd.",
         "3 dedos → pH        |  4 dedos → Luz UV",
         "← → Microbio  |  Pulgar ↑ → +1 Día",
         "B Antibiótico  |  N Custom  |  F Nutrientes",
@@ -660,10 +724,10 @@ def _draw_starvation_overlay(surface, w, h, particles):
 
     # Título parpadea entre rojo y ámbar
     warn_col = HUD_DANGER if int(_frame_counter * 0.1) % 2 == 0 else HUD_WARN
-    surface.blit(big_font.render("⚠  ESTRÉS MÁXIMO — SIN NUTRIENTES", True, warn_col),
+    surface.blit(big_font.render("ESTRES MAXIMO — sin nutrientes", True, warn_col),
                  (px_ov + 20, py_ov + 18))
     surface.blit(font.render(
-        f"Las bacterias entran en modo de inanición  |  Vivas: {alive}",
+        f"Bacterias vivas: {alive}",
         True, HUD_WARN), (px_ov + 20, py_ov + 62))
     surface.blit(font.render(
         "F  →  Reponer nutrientes al 100%",
@@ -681,7 +745,7 @@ def _draw_starvation_overlay(surface, w, h, particles):
 # ========================
 
 def draw_ui(surface, temp, humidity, ph, light, nutrients, current_microbe,
-            simulated_days, particles, population_graph,
+            simulated_days, particles, population_graph, stress_graph,
             temp_slider, hum_slider, ph_slider, light_slider, nutrient_slider):
     """Solo el fondo petri dish — llamar ANTES de dibujar las bacterias."""
     global _frame_counter
@@ -690,7 +754,7 @@ def draw_ui(surface, temp, humidity, ph, light, nutrients, current_microbe,
 
 
 def draw_ui_overlay(surface, temp, humidity, ph, light, nutrients, current_microbe,
-                    simulated_days, particles, population_graph,
+                    simulated_days, particles, population_graph, stress_graph,
                     temp_slider, hum_slider, ph_slider, light_slider, nutrient_slider):
     """Todos los paneles HUD + overlay inanición — llamar DESPUÉS de las bacterias."""
     current_w, current_h = surface.get_size()
@@ -714,6 +778,7 @@ def draw_ui_overlay(surface, temp, humidity, ph, light, nutrients, current_micro
         population_graph.width  = graph_w
         population_graph.height = GRAPH_H
         population_graph.draw(surface)
+        stress_graph.draw(surface, 8, current_h - GRAPH_H - 12, SIDEBAR_W - 16, GRAPH_H)
 
     draw_controls_help(surface, current_w, current_h)
 
