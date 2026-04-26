@@ -23,7 +23,7 @@ GRAY = (100, 100, 100)
 LIGHT_GRAY = (180, 180, 180)
 
 # ------------------- parametros de simulacion -------------------
-MAX_PARTICLES = 1200
+MAX_PARTICLES = 7000
 INITIAL_PARTICLES = 150
 INITIAL_NUTRIENTS = 100.0       
 MAX_NUTRIENTS = 100.0   
