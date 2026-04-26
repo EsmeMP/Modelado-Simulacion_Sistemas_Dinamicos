@@ -50,10 +50,10 @@ PROYECTOS = {
        
     },
     "proyecto3": {
-        "nombre":      "Proyecto 3",
+        "nombre":      "Particle Movement",
         "descripcion": "Simulación interactiva de partículas con amortiguamiento y ruido en tiempo real.",
         "icono":       "🪄",
-        "script":      "particles/file.py",
+        "script":      "particles/main.py",
         "cwd":         "particles",
        
     },
