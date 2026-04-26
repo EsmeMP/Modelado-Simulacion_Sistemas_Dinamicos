@@ -56,7 +56,7 @@ PROYECTOS = {
         "descripcion": "Simulación interactiva de partículas con amortiguamiento y ruido en tiempo real.",
         "icono_png":   "particulas.png",
         "icono_gif":   "particulas.gif",
-        "script":      "particles/file.py",
+        "script":      "particles/main.py",
         "cwd":         "particles",
        
     },

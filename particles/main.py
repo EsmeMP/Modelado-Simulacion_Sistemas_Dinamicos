@@ -237,7 +237,7 @@ while True:
     cv2.addWeighted(overlay, 0.55, final, 0.45, 0, final)
     cv2.line(final, (0, 40), (sim_width, 40), (0, 80, 40), 1)
     cv2.putText(final, "dv/dt = -c*v + k_voz*voz(t)", (10, 28),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.55, (225, 225, 225), 1, cv2.LINE_AA)
+                cv2.FONT_HERSHEY_SIMPLEX, 0.55, (130, 130, 155), 1, cv2.LINE_AA)
     params_str = f"c={c:.3f}  k={k_voz:.3f}  [q/a]=c  [w/s]=k  [+/-]=crecimiento [ESC]=guardar"
     (pw, _), _ = cv2.getTextSize(params_str, cv2.FONT_HERSHEY_SIMPLEX, 0.32, 1)
     cv2.putText(final, params_str, (sim_width-pw-8, 28),
