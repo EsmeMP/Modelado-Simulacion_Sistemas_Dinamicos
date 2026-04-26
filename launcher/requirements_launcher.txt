@@ -1,2 +1,0 @@
-# Solo Flask — el resto ya está en tu venv
-flask>=3.0
