@@ -88,3 +88,5 @@ launcher/
 ```
 
 O súbelo sin problema, no toca nada de `bact_ai/`.
+"# RealTimeSimulator" 
+"# RealTimeSimulator_" 

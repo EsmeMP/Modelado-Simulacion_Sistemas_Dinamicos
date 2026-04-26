@@ -35,27 +35,27 @@ PYTHON      = sys.executable   # usa el mismo python/venv con que corres Flask
 PROYECTOS = {
     "bact_ai": {
         "nombre":      "GestBact AI",
-        "descripcion": "Simulador de bacterias con 5 factores científicos controlados por gestos de mano (MediaPipe + Pygame).",
+        "descripcion": "Simulador de bacterias con 5 factores científicos controlados por gestos de mano.",
         "icono":       "🦠",
         "script":      "bact_ai/main.py",          # relativo a BASE_DIR
         "cwd":         "bact_ai",                  # relativo a BASE_DIR  ← IMPORTANTE
-        "tags":        ["MediaPipe", "Pygame", "OpenCV"],
+        
     },
     "proyecto2": {
         "nombre":      "Proyecto 2",
         "descripcion": "Próximamente — agrega aquí tu segundo proyecto.",
-        "icono":       "🔬",
+        "icono":       "🛻",
         "script":      None,                       # None = aún no disponible
         "cwd":         None,
-        "tags":        ["Próximo"],
+       
     },
     "proyecto3": {
         "nombre":      "Proyecto 3",
-        "descripcion": "Próximamente — agrega aquí tu tercer proyecto.",
-        "icono":       "🧬",
-        "script":      None,
-        "cwd":         None,
-        "tags":        ["Próximo"],
+        "descripcion": "Simulación interactiva de partículas con amortiguamiento y ruido en tiempo real.",
+        "icono":       "🪄",
+        "script":      "particles/file.py",
+        "cwd":         "particles",
+       
     },
 }
 

@@ -14,7 +14,7 @@ from config import *
 from microbes import get_all_microbes, get_microbe_data, calculate_growth_rate 
 from simulation import Particle, create_explosion, handle_collisions, update_bacteria_growth
 from gestures import GestureController
-from ui import Slider, PopulationGraph, draw_ui, CustomMicrobeForm
+from ui import Slider, PopulationGraph, draw_ui, CustomMicrobeForm, draw_ui_overlay
 from analysis import show_analysis
 
 
@@ -151,12 +151,27 @@ while running:
                 idx = keys.index(current_microbe)
                 current_microbe = keys[(idx + 1) % len(keys)]
                 gesture_text = f"Microbio: {current_microbe}"
+                # Actualizar shape y color de todas las partículas existentes
+                data = get_microbe_data(current_microbe)
+                if data:
+                    for p in particles:
+                        if p.is_bacteria:
+                            p.shape       = data.get("shape", "bacilo_peritrico")
+                            p.color       = tuple(data["color"])
+                            p.microbe_key = current_microbe
 
             elif event.key == pygame.K_LEFT:
                 keys = get_all_microbes()
                 idx = keys.index(current_microbe)
                 current_microbe = keys[(idx - 1) % len(keys)]
                 gesture_text = f"Microbio: {current_microbe}"
+                data = get_microbe_data(current_microbe)
+                if data:
+                    for p in particles:
+                        if p.is_bacteria:
+                            p.shape       = data.get("shape", "bacilo_peritrico")
+                            p.color       = tuple(data["color"])
+                            p.microbe_key = current_microbe
 
             elif event.key == pygame.K_m:
                 # Tecla M → abrir análisis matemático en ventana matplotlib
@@ -197,6 +212,10 @@ while running:
                 temp, humidity, ph, light, current_microbe
             )
 
+    if gesture_controller.pause_triggered:
+        paused = not paused
+        gesture_controller.pause_triggered = False
+        
     # Sincronizar sliders con valores de gestos
     temp_slider.update(temp)
     hum_slider.update(humidity)
@@ -222,17 +241,28 @@ while running:
                     total_force += force
                     p.glow = max(p.glow, 0.9)
 
-            for v_pos in vortex_centers:
-                direction = v_pos - p.pos
-                dist = np.linalg.norm(direction)
-                if dist > 10:
-                    perpendicular = np.array([-direction[1], direction[0]])
-                    p.vel += perpendicular * (780 / (dist + 30)) * dt
 
             p.update(total_force, dt)
+            MAX_SPEED = 400.0
+            speed = np.linalg.norm(p.vel)
+            if speed > MAX_SPEED:
+                p.vel = (p.vel / speed) * MAX_SPEED
 
-            if p.pos[0] < 0 or p.pos[0] > current_w:
-                p.vel[0] *= -0.82
+            # Colisiones con paredes
+            margin = 30
+            if p.pos[0] < margin:
+                p.vel[0] += (margin - p.pos[0]) * 2.5   # empuje suave hacia adentro
+                p.pos[0]  = max(2, p.pos[0])
+            elif p.pos[0] > current_w - margin:
+                p.vel[0] -= (p.pos[0] - (current_w - margin)) * 2.5
+                p.pos[0]  = min(current_w - 2, p.pos[0])
+
+            if p.pos[1] < margin:
+                p.vel[1] += (margin - p.pos[1]) * 2.5
+                p.pos[1]  = max(2, p.pos[1])
+            elif p.pos[1] > current_h - margin:
+                p.vel[1] -= (p.pos[1] - (current_h - margin)) * 2.5
+                p.pos[1]  = min(current_h - 2, p.pos[1])
                 p.pos[0] = np.clip(p.pos[0], 5, current_w - 5)
             if p.pos[1] < 0 or p.pos[1] > current_h:
                 p.vel[1] *= -0.82
@@ -246,7 +276,7 @@ while running:
         # Reflejar el consumo real en el slider
         nutrient_slider.update(nutrients)
 
-        if enable_collisions and len(particles) < 950:
+        if enable_collisions and len(particles) < 600:
             handle_collisions(particles)
 
         population_graph.update(len(particles))
@@ -262,29 +292,38 @@ while running:
         simulated_days = min(simulated_days + 1, 30)
         last_day_time = current_time
         if particles:
-            create_explosion(particles, current_w // 2, current_h // 2, count=25, intensity=0.7)
+            create_explosion(particles, current_w // 2, current_h // 2, count=25, intensity=0.7, microbe_key=current_microbe)
 
     # ========================
     # DIBUJAR
     # ========================
-    screen.fill(BLACK)
+    # screen.fill(BLACK)
+
+
+
+    draw_ui(screen, temp, humidity, ph, light, nutrients, current_microbe,
+        simulated_days, particles, population_graph,
+        temp_slider, hum_slider, ph_slider, light_slider, nutrient_slider)
+
+
 
     # Trails
-    if show_trails and len(particles) < 900:
+    if show_trails and len(particles) < 500:   
         for p in particles:
             speed = np.linalg.norm(p.vel)
-            if speed > 15:
-                alpha = min(40, int(25 * (speed / 200)))
+            if speed > 25:
                 trail_surf = pygame.Surface((6, 6), pygame.SRCALPHA)
+                alpha = min(35, int(20 * (speed / 200)))
                 pygame.draw.circle(trail_surf, (*p.color[:3], alpha), (3, 3), 3)
                 screen.blit(trail_surf, (int(p.pos[0]) - 3, int(p.pos[1]) - 3))
-
+    
     for p in particles:
         p.draw(screen)
 
-    draw_ui(screen, temp, humidity, ph, light, nutrients, current_microbe, simulated_days,
-            particles, population_graph,
-            temp_slider, hum_slider, ph_slider, light_slider, nutrient_slider)
+    # 4. Paneles ENCIMA de bacterias  ← NUEVO
+    draw_ui_overlay(screen, temp, humidity, ph, light, nutrients, current_microbe,
+                    simulated_days, particles, population_graph,
+                    temp_slider, hum_slider, ph_slider, light_slider, nutrient_slider)
 
     # Texto de gesto grande
     if any(w in gesture_text for w in ["Temp", "Humedad", "pH", "Luz", "Microbio", "Antibiótico", "Nutrientes"]):
@@ -314,6 +353,7 @@ while running:
 
     if cv2.waitKey(1) == 27:
         running = False
+
 
 # ========================
 # FINALIZACIÓN
