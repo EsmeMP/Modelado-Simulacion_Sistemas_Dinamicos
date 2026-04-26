@@ -6,7 +6,7 @@
 import pygame
 
 # ------------------- ventana -------------------
-WIDTH, HEIGHT = 1280, 820
+WIDTH, HEIGHT = 1500, 820
 FPS = 60
 
 # ------------------- colores -------------------
@@ -24,7 +24,7 @@ LIGHT_GRAY = (180, 180, 180)
 
 # ------------------- parametros de simulacion -------------------
 MAX_PARTICLES = 1200
-INITIAL_PARTICLES = 350
+INITIAL_PARTICLES = 150
 INITIAL_NUTRIENTS = 100.0       
 MAX_NUTRIENTS = 100.0   
 
