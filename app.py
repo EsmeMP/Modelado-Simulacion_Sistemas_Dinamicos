@@ -42,18 +42,18 @@ PROYECTOS = {
         
     },
     "proyecto2": {
-        "nombre":      "Proyecto 2",
+        "nombre":      "Pro",
         "descripcion": "Próximamente — agrega aquí tu segundo proyecto.",
         "icono":       "🛻",
-        "script":      None,                       # None = aún no disponible
-        "cwd":         None,
+        "script":      "suspension/main.py",                       # None = aún no disponible
+        "cwd":         "suspension",
        
     },
     "proyecto3": {
         "nombre":      "Proyecto 3",
         "descripcion": "Simulación interactiva de partículas con amortiguamiento y ruido en tiempo real.",
         "icono":       "🪄",
-        "script":      "particles/file.py",
+        "script":      "particles/main.py",
         "cwd":         "particles",
        
     },

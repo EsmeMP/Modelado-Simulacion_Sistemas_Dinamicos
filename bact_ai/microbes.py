@@ -5,6 +5,7 @@
 import json
 import os
 
+
 _MAX_NUTRIENTS = 100.0
 
 CUSTOM_PATH = os.path.join(os.path.dirname(__file__), "data", "custom_microbes.json")
@@ -195,6 +196,18 @@ def save_custom_microbe(key, data):
 
     microbes_db[key] = data
     print(f"[microbes] Microbio '{key}' guardado")
+
+_INVADER_MAP = {
+    "E. coli":      "Staphylococcus",
+    "Salmonella":   "Pseudomonas",
+    "Staphylococcus": "E. coli",
+    "Pseudomonas":  "Salmonella",
+    "Influenza":    "Staphylococcus",
+}
+
+def get_invader(current_microbe: str) -> str:
+    """Devuelve el microbio invasor para el microbio actual."""
+    return _INVADER_MAP.get(current_microbe, "Staphylococcus")
 
 
 load_custom_microbes()
