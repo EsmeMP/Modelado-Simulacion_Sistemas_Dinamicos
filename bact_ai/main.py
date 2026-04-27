@@ -454,6 +454,12 @@ while running:
     # 6. Formulario (siempre al frente)
     custom_form.draw(screen)
 
+    import analysis as _ana_mod
+    with _ana_mod._analysis_lock:
+        if _ana_mod.analysis_ready:
+            import subprocess
+            subprocess.Popen(["xdg-open", _ana_mod.analysis_path])
+            _ana_mod.analysis_ready = False 
     pygame.display.flip()
 
     if frame is not None:
