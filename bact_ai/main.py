@@ -276,13 +276,6 @@ while running:
                         "light":     light,
                         "nutrients": nutrients,
                     },
-                    # ── invasión ──────────────────────────────────────
-                    invasion_active  = _inv_active,
-                    invader_name     = _inv_key or "Invasor",
-                    N0_native        = _n0_nat,
-                    M0_invader       = _m0_inv,
-                    r_frame_invader  = _r_inv,
-                    invasion_history = invasion_history.copy(),
                 )
                 gesture_text = f"Análisis abierto — día {simulated_days:.2f}"
 

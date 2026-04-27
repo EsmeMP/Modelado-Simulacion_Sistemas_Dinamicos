@@ -186,6 +186,98 @@ def _fmt(v):
 
 
 # ========================
+# TABLA NUMÉRICA — Euler vs Heun paso a paso
+# ========================
+
+def _build_step_table(t_array, N_ana, N_euler, N_heun, r, K, h_step,
+                      max_rows=12):
+    """
+    Construye la tabla paso a paso con un subconjunto pedagógico de filas.
+    Devuelve (header, rows) donde rows es una lista de strings formateados.
+
+    IMPORTANTE: N_euler y N_heun deben haber sido calculados con el MISMO
+    t_array que se pasa aquí (mismo h_step), para que la tabla sea consistente
+    con la gráfica de errores.
+    """
+    steps = len(t_array) - 1
+
+    t50_i = int(np.argmax(N_ana >= 0.50 * N_ana[-1]))
+    t95_i = int(np.argmax(N_ana >= 0.95 * N_ana[-1]))
+    show  = sorted(set(
+        list(range(min(6, steps + 1))) +
+        [max(0, t50_i - 1), t50_i, min(steps, t50_i + 1)] +
+        [max(0, t95_i - 1), t95_i, min(steps, t95_i + 1)] +
+        list(range(max(0, steps - 2), steps + 1))
+    ))
+    show = [i for i in show if i <= steps][:max_rows]
+
+    # Predictor Euler: recalculado desde el yn de la tabla (no desde N_euler[i+1])
+    # Para ODE autónoma f(N) no depende de t, por eso t=0 está bien.
+    def euler_pred(yn):
+        return yn + h_step * logistic_ode(yn, 0, r, K)
+
+    sep = "  " + "─" * 130
+    hdr = (
+        f"  {'n':>4}  {'Xn':>7}  {'Y exacta':>10}  "
+        f"{'Yn Euler':>10}  {'Yn+1* pred':>11}  {'Yn+1 Euler':>11}  "
+        f"{'Ea Euler':>10}  {'Er Euler':>10}  {'Er% Euler':>10}  "
+        f"{'Yn Heun':>10}  {'Yn+1 Heun':>10}  "
+        f"{'Ea Heun':>9}  {'Er Heun':>9}  {'Er% Heun':>9}"
+    )
+
+    rows = [sep, hdr, sep]
+    prev_i = -2
+    for i in show:
+        if i > prev_i + 1:
+            rows.append("  " + "·" * 130)
+        prev_i = i
+
+        xn      = t_array[i]
+        yn_ex   = N_ana[i]
+        yn_eu   = N_euler[i]
+        yn_he   = N_heun[i]
+        ynp1_eu = N_euler[i + 1] if i < steps else float("nan")
+        ynp1_he = N_heun[i + 1]  if i < steps else float("nan")
+        ypred   = euler_pred(yn_eu)
+
+        yn_ex_next = N_ana[i + 1] if i < steps else float("nan")
+
+        ea_eu = abs(ynp1_eu - yn_ex_next) if not np.isnan(ynp1_eu) else float("nan")
+        ea_he = abs(ynp1_he - yn_ex_next) if not np.isnan(ynp1_he) else float("nan")
+
+        denom_next = abs(yn_ex_next) if (not np.isnan(yn_ex_next) and abs(yn_ex_next) > 1e-10) else 1e-10
+        er_eu  = ea_eu  / denom_next if not np.isnan(ea_eu)  else float("nan")
+        er_he  = ea_he  / denom_next if not np.isnan(ea_he)  else float("nan")
+        erp_eu = er_eu  * 100        if not np.isnan(er_eu)  else float("nan")
+        erp_he = er_he  * 100        if not np.isnan(er_he)  else float("nan")
+
+        def fv(v, w=10, d=4):
+            if np.isnan(v): return f"{'—':>{w}}"
+            if abs(v) < 0.001 and v != 0: return f"{v:{w}.3e}"
+            return f"{v:{w}.{d}f}"
+
+        def fp(v, w=10):
+            if np.isnan(v): return f"{'—':>{w}}"
+            return f"{v:{w}.4f}%"
+
+        marker = ""
+        if i == t50_i: marker = " ←t50"
+        if i == t95_i: marker = " ←t95"
+
+        rows.append(
+            f"  {i:>4}  {xn:>7.3f}  {fv(yn_ex)}  "
+            f"{fv(yn_eu)}  {fv(ypred, 11)}  {fv(ynp1_eu, 11)}  "
+            f"{fv(ea_eu)}  {fv(er_eu)}  {fp(erp_eu)}  "
+            f"{fv(yn_he)}  {fv(ynp1_he)}  "
+            f"{fv(ea_he, 9)}  {fv(er_he, 9)}  {fp(erp_he, 9)}"
+            f"{marker}"
+        )
+
+    rows.append(sep)
+    return rows
+
+
+# ========================
 # FUNCIÓN PRINCIPAL
 # ========================
 
@@ -230,88 +322,104 @@ def _run_analysis(N0, r_frame, K, t_max=30, steps=500,
     N0 = float(max(1, N0))
     K  = float(max(2, K))
 
+    # ── N0 pedagógico ──────────────────────────────────────────────────────
+    # FIX #4: Si N0 real es alto (>15% de K), se usa N0_ped = 1% de K como
+    # N0_plot para mostrar la sigmoide completa. Así los errores en la fase
+    # de crecimiento rápido son visibles y reales.
     _has_real_native = (N0_native is not None and float(N0_native) > 0)
     if _has_real_native:
         N0_plot = float(N0_native)
-    elif N0 >= K * 0.80:
-        N0_plot = K * 0.05
-    elif N0 >= K * 0.40:
-        N0_plot = K * 0.10
     else:
-        N0_plot = N0
+        # Siempre usar N0 bajo para gráfica pedagógica cuando la real es alta
+        N0_plot = K * 0.01 if N0 >= K * 0.15 else N0
 
-    # ── Vector de tiempo ───────────────────────────────────────────────────
-    t    = np.linspace(0, t_max, steps)
-    h    = t[1] - t[0]
-    stab = check_stability(r, h)
-    if not stab['euler_stable']:
-        t    = np.linspace(0, t_max, max(steps, int(np.ceil(t_max * r * 3))))
-        h    = t[1] - t[0]
-        stab = check_stability(r, h)
+    N0_real = N0   # conservar para tabla y etiquetas
 
-    # ── Soluciones logísticas (h normal) ───────────────────────────────────
-    N_ana     = analytic_solution(t, N0_plot, r, K)
-    N_euler   = euler_method(N0_plot, r, K, t)
-    N_heun    = heun_method(N0_plot, r, K, t)
-    N_laplace = laplace_solution(t, N0_plot, r, K)
-
-    # ── Euler con h fino (5x más pasos) para mostrar convergencia ──────────
-    t_fine       = np.linspace(0, t_max, steps * 5)
-    h_fine       = t_fine[1] - t_fine[0]
-    N_euler_fine = euler_method(N0_plot, r, K, t_fine)
-    N_ana_fine   = analytic_solution(t_fine, N0_plot, r, K)
-
-    # ── h demo: suficientemente grande para separación visual pedagógica ────
+    # ── Vector de tiempo: UN SOLO h para gráfica y errores ─────────────────
+    # FIX #3: Eliminamos la distinción "h grueso" vs "h fino" en la gráfica
+    # principal. Usamos h_demo (paso grande, pedagógico) tanto para las curvas
+    # como para la gráfica de errores. El "h fino" solo se usa para la
+    # comparación de convergencia dentro de la gráfica 2.
     h_demo = min(1.5 / r, t_max / 8)
-    t_demo = np.arange(0, t_max + h_demo, h_demo)
-    t_demo = t_demo[t_demo <= t_max]
+    # Asegurar que h_demo sea estable para Euler: h < 2/r
+    h_max_stable = (2.0 / r) * 0.90   # 90% del límite teórico
+    h_demo = min(h_demo, h_max_stable)
+
+    t_demo = np.arange(0, t_max + h_demo * 0.001, h_demo)
+    t_demo = t_demo[t_demo <= t_max + 1e-9]
+    h_actual = float(t_demo[1] - t_demo[0])  # h real del array
+
+    # Vector denso solo para la curva analítica de referencia visual suave
+    t_dense = np.linspace(0, t_max, 1000)
+
+    # Vector fino para comparación de convergencia (Gráfica 2)
+    # FIX #3: Se etiqueta explícitamente como "h/5 (convergencia)"
+    t_fine = np.arange(0, t_max + h_demo / 5 * 0.001, h_demo / 5)
+    t_fine = t_fine[t_fine <= t_max + 1e-9]
+    h_fine = float(t_fine[1] - t_fine[0])
+
+    stab      = check_stability(r, h_actual)
+    stab_fine = check_stability(r, h_fine)
+
+    # ── Soluciones — todas con el MISMO h_demo para consistencia ───────────
+    # FIX #1 y #2: N_euler_demo y N_heun_demo son los que se grafican Y los
+    # que se usan para calcular errores. No hay discrepancia de h entre ellos.
+    N_ana_demo   = analytic_solution(t_demo, N0_plot, r, K)
     N_euler_demo = euler_method(N0_plot, r, K, t_demo)
     N_heun_demo  = heun_method(N0_plot, r, K, t_demo)
 
-    # ── Errores ────────────────────────────────────────────────────────────
-    err_euler      = relative_error(N_euler,      N_ana)
-    err_heun       = relative_error(N_heun,       N_ana)
-    err_laplace    = relative_error(N_laplace,    N_ana)
-    err_euler_fine = relative_error(N_euler_fine, N_ana_fine)
+    # Solución analítica densa (solo para la curva suave en gráfica 1)
+    N_ana_dense  = analytic_solution(t_dense, N0_plot, r, K)
+    N_lap_dense  = laplace_solution(t_dense, N0_plot, r, K)
 
-    lap_max        = float(np.max(err_laplace))
-    lap_mean       = float(np.mean(err_laplace))
-    t50 = _time_to_fraction(t, N_ana, K, 0.50)
-    t95 = _time_to_fraction(t, N_ana, K, 0.95)
-    euler_max       = float(np.max(err_euler))
-    euler_mean      = float(np.mean(err_euler))
-    heun_max        = float(np.max(err_heun))
-    heun_mean       = float(np.mean(err_heun))
+    # Euler fino para comparación de convergencia
+    N_euler_fine = euler_method(N0_plot, r, K, t_fine)
+    N_ana_fine   = analytic_solution(t_fine, N0_plot, r, K)
+    N_heun_fine  = heun_method(N0_plot, r, K, t_fine)
+
+    # ── Errores — calculados sobre h_demo (consistentes con la gráfica) ────
+    # FIX #1: err_euler y err_heun ahora usan el mismo t_demo que las curvas
+    # de la Gráfica 1. Los valores del panel de parámetros y la gráfica 2
+    # se refieren todos al mismo h.
+    err_euler_demo = relative_error(N_euler_demo, N_ana_demo)
+    err_heun_demo  = relative_error(N_heun_demo,  N_ana_demo)
+
+    # Laplace sobre t_dense (es continua, no depende de h)
+    err_laplace    = relative_error(N_lap_dense, N_ana_dense)
+
+    # Errores finos para comparación de convergencia en Gráfica 2
+    err_euler_fine = relative_error(N_euler_fine, N_ana_fine)
+    err_heun_fine  = relative_error(N_heun_fine,  N_ana_fine)
+
+    # ── Estadísticas de error ──────────────────────────────────────────────
+    euler_max       = float(np.max(err_euler_demo))
+    euler_mean      = float(np.mean(err_euler_demo))
+    heun_max        = float(np.max(err_heun_demo))
+    heun_mean       = float(np.mean(err_heun_demo))
     euler_fine_max  = float(np.max(err_euler_fine))
     euler_fine_mean = float(np.mean(err_euler_fine))
+    heun_fine_max   = float(np.max(err_heun_fine))
+    heun_fine_mean  = float(np.mean(err_heun_fine))
+    lap_max         = float(np.max(err_laplace))
+    lap_mean        = float(np.mean(err_laplace))
 
-    # ── Lotka-Volterra ─────────────────────────────────────────────────────
-    lv_active = invasion_active and (M0_invader is not None) and (M0_invader > 0)
+    t50 = _time_to_fraction(t_demo, N_ana_demo, K, 0.50)
+    t95 = _time_to_fraction(t_demo, N_ana_demo, K, 0.95)
 
-    if lv_active:
-        n0_nat  = float(N0_native)
-        m0_inv  = float(M0_invader)
-        ratio_r = r2 / r if r > 0 else 1.0
-        K1      = K
-        K2      = float(np.clip(K * ratio_r, K * 0.4, K * 1.4))
-        alpha12 = float(np.clip(r2 / r,  0.30, 2.50))
-        alpha21 = float(np.clip(r  / r2, 0.30, 2.50))
-        if abs(alpha12 - 1.0) < 0.05:
-            alpha12 = 1.10; alpha21 = 0.90
-        N_eu_lv, M_eu_lv = euler_lv(n0_nat, m0_inv, r, r2, K1, K2, alpha12, alpha21, t)
-        N_hu_lv, M_hu_lv = heun_lv( n0_nat, m0_inv, r, r2, K1, K2, alpha12, alpha21, t)
-        N_star, M_star, eigenvalues = lv_equilibrium(r, r2, K1, K2, alpha12, alpha21)
-        lv_eq_exists = N_star is not None
-        err_lv_N = relative_error(N_eu_lv, N_hu_lv)
-        err_lv_M = relative_error(M_eu_lv, M_hu_lv)
+    # ── TABLA paso a paso ─────────────────────────────────────────────────
+    # FIX #2: La tabla usa EXACTAMENTE los mismos arrays (t_demo, N_euler_demo,
+    # N_heun_demo, N_ana_demo) que la gráfica 1. Los valores de la tabla
+    # coinciden punto a punto con las curvas visibles.
+    table_rows = _build_step_table(
+        t_demo, N_ana_demo, N_euler_demo, N_heun_demo,
+        r, K, h_step=h_actual
+    )
 
     # ── Colores ────────────────────────────────────────────────────────────
     C_ANA   = "#00ff88"
     C_EULER = "#ff6644"
     C_HEUN  = "#44aaff"
     C_LAP   = "#cc88ff"
-    C_NAT   = "#00ff88"
-    C_INV   = "#ff4455"
 
     # ── Tamaños de fuente ──────────────────────────────────────────────────
     FS_TITLE  = 13
@@ -319,7 +427,7 @@ def _run_analysis(N0, r_frame, K, t_max=30, steps=500,
     FS_TICK   = 10
     FS_LEGEND = 10
     FS_ANNOT  = 10
-    FS_BOX    = 10
+    FS_BOX    = 9
     FS_SUP    = 13
 
     def _ax(ax, title="", xlabel="Tiempo (días)", ylabel=""):
@@ -341,16 +449,9 @@ def _run_analysis(N0, r_frame, K, t_max=30, steps=500,
     plt.style.use("dark_background")
 
     # ── Layout ─────────────────────────────────────────────────────────────
-    if lv_active:
-        n_rows        = 3
-        height_ratios = [1.0, 1.0, 0.60]
-        row_lv        = 1
-        row_info      = 2
-    else:
-        n_rows        = 2
-        height_ratios = [1.0, 0.60]
-        row_lv        = None
-        row_info      = 1
+    n_rows        = 2
+    height_ratios = [1.0, 1.60]
+    row_info      = 1
 
     fig_h = sum(height_ratios) * 6.0
     fig   = plt.figure(figsize=(16, fig_h), facecolor="#07070f")
@@ -358,10 +459,12 @@ def _run_analysis(N0, r_frame, K, t_max=30, steps=500,
     dias_act = (simulation_history[-1][0]
                 if simulation_history and len(simulation_history) > 0 else 0.0)
 
+    # FIX #3: El título ahora indica claramente qué h se usa en la gráfica
     fig.suptitle(
         f"Análisis de Crecimiento Bacteriano — {microbe_name}"
-        + (f"  vs  {invader_name}" if lv_active else "")
-        + f"\nr = {r:.4f} días⁻¹   K = {int(K)}   h = {h:.4f} días   "
+        + f"\nr = {r:.4f} días⁻¹   K = {int(K)}   "
+        + f"h (gráfica) = {h_actual:.4f} días   "
+        + f"h (convergencia) = {h_fine:.4f} días   "
         + f"Día simulado: {dias_act:.2f}",
         fontsize=FS_SUP, color="white", fontweight="bold", y=1.0
     )
@@ -375,33 +478,28 @@ def _run_analysis(N0, r_frame, K, t_max=30, steps=500,
     )
 
     # ══════════════════════════════════════════════════════════════════════
-    # GRÁFICA 1 — Curva S pedagógica con h_demo grande (diferencia visible)
+    # GRÁFICA 1 — Curva S pedagógica
     # ══════════════════════════════════════════════════════════════════════
     ax1 = fig.add_subplot(gs[0, 0])
 
-    # Analítica — referencia exacta (línea continua)
-    ax1.plot(t, N_ana, color=C_ANA, lw=2.5, zorder=5,
-             label="Analítica (solución exacta)")
+    # Curva analítica densa (suave, referencia visual)
+    ax1.plot(t_dense, N_ana_dense, color=C_ANA, lw=2.5, zorder=5,
+             label="Analítica (referencia exacta)")
 
-    # Euler demo — marcadores circulares, diferencia visual clara
+    # Euler y Heun con h_demo — marcadores en los mismos puntos que la tabla
     ax1.plot(t_demo, N_euler_demo, color=C_EULER, lw=1.6,
              ls="--", marker="o", markersize=5, markerfacecolor="none",
              markeredgewidth=1.4, zorder=4,
-             label=f"Euler  h={h_demo:.2f} d (demo visual)")
-
-    # Heun demo — marcadores estrella, converge mejor
+             label=f"Euler  h={h_actual:.3f} d")
     ax1.plot(t_demo, N_heun_demo, color=C_HEUN, lw=1.6,
              ls="-", marker="*", markersize=6, zorder=4,
-             label=f"Heun   h={h_demo:.2f} d (demo visual)")
-
-    # Laplace — linealización
-    ax1.plot(t, N_laplace, color=C_LAP, lw=1.5, ls=":",
+             label=f"Heun   h={h_actual:.3f} d")
+    ax1.plot(t_dense, N_lap_dense, color=C_LAP, lw=1.5, ls=":",
              label="Laplace (lineal.)")
 
-    # Zona donde Laplace tiene error > 5 %
-    invalid = laplace_error_region(t, N0_plot, r, K, threshold=5.0)
+    invalid = laplace_error_region(t_dense, N0_plot, r, K, threshold=5.0)
     if invalid.any():
-        ax1.fill_between(t, 0, K * 1.05, where=invalid,
+        ax1.fill_between(t_dense, 0, K * 1.05, where=invalid,
                          alpha=0.07, color=C_LAP,
                          label="Zona Laplace inválida (err>5%)")
 
@@ -415,9 +513,14 @@ def _run_analysis(N0, r_frame, K, t_max=30, steps=500,
     ax1.text(t95 + t_max*0.01, K*0.03, f"t₉₅={t95:.1f}d",
              color=C_EULER, fontsize=FS_ANNOT)
 
+    # Nota: N0 usado en la gráfica vs N0 real de la simulación
+    n0_note = (f"N₀ gráfica = {int(N0_plot)} (forma S)"
+               if N0_plot != N0_real
+               else f"N₀ = {int(N0_plot)}")
     ax1.text(0.02, 0.97,
              f"dN/dt = r · N · (1 − N/K)\n"
-             f"h_demo={h_demo:.2f}d  →  diferencia Euler vs Heun visible",
+             f"{n0_note}\n"
+             f"h = {h_actual:.4f} d  →  mismo h en tabla y error",
              transform=ax1.transAxes, color="#aaddff", fontsize=FS_ANNOT,
              va="top", fontfamily="monospace",
              bbox=dict(boxstyle="round,pad=0.35", facecolor="#06061a",
@@ -428,41 +531,56 @@ def _run_analysis(N0, r_frame, K, t_max=30, steps=500,
         ylabel="Población N(t)")
 
     # ══════════════════════════════════════════════════════════════════════
-    # GRÁFICA 2 — Errores: Euler grueso, Euler fino, Heun, Laplace
+    # GRÁFICA 2 — Errores
+    # FIX #1 y #3: Ahora hay DOS pares de curvas claramente etiquetados:
+    #   • h_demo (el paso que ves en la Gráfica 1 y en la tabla)
+    #   • h/5    (paso fino, solo para mostrar convergencia al reducir h)
+    # Ambos se calcularon con euler_method/heun_method sobre sus propios
+    # t_demo / t_fine, así que los valores son honestos y consistentes.
     # ══════════════════════════════════════════════════════════════════════
     ax2 = fig.add_subplot(gs[0, 1])
 
-    # Euler h grueso
-    ax2.fill_between(t, err_euler, alpha=0.15, color=C_EULER)
-    ax2.plot(t, err_euler, color=C_EULER, lw=2.0,
-             label=f"Euler grueso — máx {_fmt(euler_max)}, prom {_fmt(euler_mean)}")
+    # Euler h_demo (mismo que gráfica 1 y tabla)
+    ax2.fill_between(t_demo, err_euler_demo, alpha=0.15, color=C_EULER)
+    ax2.plot(t_demo, err_euler_demo, color=C_EULER, lw=2.2,
+             label=(f"Euler  h={h_actual:.3f} d "
+                    f"[máx {_fmt(euler_max)}, prom {_fmt(euler_mean)}]"))
 
-    # Euler h fino
-    ax2.fill_between(t_fine, err_euler_fine, alpha=0.10, color=C_EULER)
-    ax2.plot(t_fine, err_euler_fine, color=C_EULER, lw=1.2, ls="-", alpha=0.50,
-             label=f"Euler fino   — máx {_fmt(euler_fine_max)}, prom {_fmt(euler_fine_mean)}")
+    # Euler fino (convergencia)
+    ax2.plot(t_fine, err_euler_fine, color=C_EULER, lw=1.2, ls="--", alpha=0.55,
+             label=(f"Euler  h={h_fine:.4f} d [convergencia] "
+                    f"[máx {_fmt(euler_fine_max)}, prom {_fmt(euler_fine_mean)}]"))
 
-    # Heun
-    ax2.fill_between(t, err_heun, alpha=0.15, color=C_HEUN)
-    ax2.plot(t, err_heun, color=C_HEUN, lw=2.0,
-             label=f"Heun         — máx {_fmt(heun_max)}, prom {_fmt(heun_mean)}")
+    # Heun h_demo (mismo que gráfica 1 y tabla)
+    ax2.fill_between(t_demo, err_heun_demo, alpha=0.15, color=C_HEUN)
+    ax2.plot(t_demo, err_heun_demo, color=C_HEUN, lw=2.2,
+             label=(f"Heun   h={h_actual:.3f} d "
+                    f"[máx {_fmt(heun_max)}, prom {_fmt(heun_mean)}]"))
 
-    # Laplace
-    ax2.fill_between(t, err_laplace, alpha=0.12, color=C_LAP)
-    ax2.plot(t, err_laplace, color=C_LAP, lw=1.8, ls=":",
-             label=f"Laplace      — máx {_fmt(lap_max)}, prom {_fmt(lap_mean)}")
+    # Heun fino (convergencia)
+    ax2.plot(t_fine, err_heun_fine, color=C_HEUN, lw=1.2, ls="--", alpha=0.55,
+             label=(f"Heun   h={h_fine:.4f} d [convergencia] "
+                    f"[máx {_fmt(heun_fine_max)}, prom {_fmt(heun_fine_mean)}]"))
+
+    # Laplace (continua, no depende de h)
+    ax2.fill_between(t_dense, err_laplace, alpha=0.12, color=C_LAP)
+    ax2.plot(t_dense, err_laplace, color=C_LAP, lw=1.8, ls=":",
+             label=f"Laplace  [máx {_fmt(lap_max)}, prom {_fmt(lap_mean)}]")
 
     # Anotación del pico de Euler
-    idx_eu = int(np.argmax(err_euler))
+    idx_eu = int(np.argmax(err_euler_demo))
     ax2.annotate(_fmt(euler_max),
-                 xy=(t[idx_eu], euler_max),
-                 xytext=(t[idx_eu]*0.4 + t_max*0.05, euler_max*0.65),
+                 xy=(t_demo[idx_eu], euler_max),
+                 xytext=(t_demo[idx_eu]*0.4 + t_max*0.05, euler_max*0.65),
                  color=C_EULER, fontsize=FS_ANNOT,
                  arrowprops=dict(arrowstyle="->", color=C_EULER, lw=1.2))
 
     stab_txt = "✔ estable" if stab['euler_stable'] else "✗ inestable"
     ax2.text(0.02, 0.97,
-             f"Euler {stab_txt}\nHeun ✔ más preciso\nLaplace ✔ exacta cerca de K",
+             f"Línea gruesa = h usado en Gráfica 1\n"
+             f"Línea punteada = h/5 (solo convergencia)\n"
+             f"Euler {stab_txt}  |  Heun ✔ O(h²)\n"
+             f"Laplace ✔ exacta cerca de K",
              transform=ax2.transAxes, color="#ccddff", fontsize=FS_ANNOT,
              va="top", fontfamily="monospace",
              bbox=dict(boxstyle="round,pad=0.35", facecolor="#06061a",
@@ -473,73 +591,7 @@ def _run_analysis(N0, r_frame, K, t_max=30, steps=500,
         ylabel="Error relativo (%)")
 
     # ══════════════════════════════════════════════════════════════════════
-    # GRÁFICAS LV — solo si hay invasión
-    # ══════════════════════════════════════════════════════════════════════
-    if lv_active:
-
-        # Gráfica 3: Nativas + Invasoras Euler vs Heun
-        ax3 = fig.add_subplot(gs[row_lv, 0])
-        ax3.plot(t, N_eu_lv, color=C_EULER,  lw=1.5, ls="--",
-                 label=f"Euler — Nativas ({microbe_name})")
-        ax3.plot(t, N_hu_lv, color=C_NAT,    lw=2.2,
-                 label="Heun  — Nativas")
-        ax3.plot(t, M_eu_lv, color="#cc3322", lw=1.5, ls="--",
-                 label=f"Euler — Invasoras ({invader_name})")
-        ax3.plot(t, M_hu_lv, color=C_INV,    lw=2.2,
-                 label="Heun  — Invasoras")
-
-        if lv_eq_exists:
-            ax3.axhline(N_star, color=C_NAT, lw=0.8, ls=":", alpha=0.4,
-                        label=f"Eq. N*={N_star:.0f}")
-            ax3.axhline(M_star, color=C_INV, lw=0.8, ls=":", alpha=0.4,
-                        label=f"Eq. M*={M_star:.0f}")
-
-        if invasion_history and len(invasion_history) > 1:
-            t_ih = [s[0] for s in invasion_history]
-            ax3.plot(t_ih, [s[1] for s in invasion_history],
-                     color="#ccffcc", lw=1.3, alpha=0.55,
-                     marker=".", markersize=2, label="Real — nativas")
-            ax3.plot(t_ih, [s[2] for s in invasion_history],
-                     color="#ffbbbb", lw=1.3, alpha=0.55,
-                     marker=".", markersize=2, label="Real — invasoras")
-
-        ax3.text(0.02, 0.97,
-                 "dN/dt = r₁·N·(1−(N+α₁₂·M)/K₁)\ndM/dt = r₂·M·(1−(M+α₂₁·N)/K₂)",
-                 transform=ax3.transAxes, color="#aaddff", fontsize=FS_ANNOT,
-                 va="top", fontfamily="monospace",
-                 bbox=dict(boxstyle="round,pad=0.35", facecolor="#06061a",
-                           edgecolor="#2a2a60", alpha=0.88))
-
-        ax3.legend(fontsize=FS_LEGEND - 1, ncol=2, facecolor="#111122",
-                   edgecolor="#333355", framealpha=0.85)
-        _ax(ax3,
-            f"Competencia Lotka-Volterra — Euler vs Heun\n"
-            f"Nativas ({microbe_name}: {int(n0_nat)})  vs  "
-            f"Invasoras ({invader_name}: {int(m0_inv)})",
-            ylabel="Población")
-
-        # Gráfica 4: Error LV
-        ax4 = fig.add_subplot(gs[row_lv, 1])
-        ax4.fill_between(t, err_lv_N, alpha=0.15, color=C_NAT)
-        ax4.plot(t, err_lv_N, color=C_NAT, lw=2.0,
-                 label=f"Error nativas    (máx {_fmt(np.max(err_lv_N))})")
-        ax4.fill_between(t, err_lv_M, alpha=0.15, color=C_INV)
-        ax4.plot(t, err_lv_M, color=C_INV, lw=2.0,
-                 label=f"Error invasoras  (máx {_fmt(np.max(err_lv_M))})")
-
-        ax4.text(0.02, 0.97,
-                 "Error = |Euler − Heun| / Heun × 100%\n"
-                 "Error bajo = ambos métodos coinciden",
-                 transform=ax4.transAxes, color="#ccddff", fontsize=FS_ANNOT,
-                 va="top", fontfamily="monospace",
-                 bbox=dict(boxstyle="round,pad=0.35", facecolor="#06061a",
-                           edgecolor="#2a2a60", alpha=0.88))
-        _legend(ax4)
-        _ax(ax4, "Error entre Euler y Heun — Invasión\nNativas vs Invasoras",
-            ylabel="Error relativo (%)")
-
-    # ══════════════════════════════════════════════════════════════════════
-    # CUADRO DE PARÁMETROS Y FÓRMULAS — última fila, ancho completo
+    # CUADRO DE PARÁMETROS, FÓRMULAS, CONDICIONES Y TABLA — última fila
     # ══════════════════════════════════════════════════════════════════════
     ax_info = fig.add_subplot(gs[row_info, :])
     ax_info.set_facecolor("#050510")
@@ -547,37 +599,31 @@ def _run_analysis(N0, r_frame, K, t_max=30, steps=500,
 
     mejora = max(0.0, euler_mean - heun_mean)
 
-    if lv_active:
-        _n0_label = (f"  N₀ nativas   = {int(N0_plot)}\n"
-                     f"  N₀ invasoras = {int(m0_inv)}")
-    else:
-        _n0_label = (f"  N₀ = {int(N0_plot)}"
-                     + ("  (curva completa)" if N0_plot != N0 else ""))
-
     col_params = (
         "  PARÁMETROS\n"
         f"  {'─'*30}\n"
         f"  r = {r:.5f}  días⁻¹\n"
         f"  K = {int(K)}  bacterias\n"
-        f"  h = {h:.5f}  días (paso)\n"
-        f"  h_fino = {h_fine:.5f}  días\n"
-        f"  h_demo = {h_demo:.5f}  días (visual)\n"
-        f"{_n0_label}\n\n"
-        f"  EULER  (h grueso)\n"
+        f"  N₀ gráfica = {int(N0_plot)}\n"
+        f"  N₀ real    = {int(N0_real)}\n\n"
+        f"  h (gráfica 1 + tabla) = {h_actual:.5f} d\n"
+        f"  h (convergencia)      = {h_fine:.5f} d\n\n"
+        f"  EULER  (h = {h_actual:.4f} d)\n"
         f"  {'─'*30}\n"
         f"  {'✔ estable' if stab['euler_stable'] else '✗ inestable'}\n"
         f"  Error máx:   {_fmt(euler_max)}\n"
         f"  Error prom:  {_fmt(euler_mean)}\n\n"
-        f"  EULER  (h fino × 5)\n"
+        f"  EULER  (h/5 = {h_fine:.4f} d, convergencia)\n"
         f"  {'─'*30}\n"
+        f"  {'✔ estable' if stab_fine['euler_stable'] else '✗ inestable'}\n"
         f"  Error máx:   {_fmt(euler_fine_max)}\n"
         f"  Error prom:  {_fmt(euler_fine_mean)}\n\n"
-        f"  HEUN\n"
+        f"  HEUN  (h = {h_actual:.4f} d)\n"
         f"  {'─'*30}\n"
-        f"  ✔ siempre estable\n"
+        f"  ✔ siempre más preciso que Euler\n"
         f"  Error máx:   {_fmt(heun_max)}\n"
         f"  Error prom:  {_fmt(heun_mean)}\n\n"
-        f"  Heun mejora {mejora:.4f}%\n"
+        f"  Heun mejora vs Euler: {mejora:.4f}%\n"
         f"  t₅₀ ≈ {t50:.2f} d\n"
         f"  t₉₅ ≈ {t95:.2f} d\n\n"
         f"  LAPLACE\n"
@@ -597,14 +643,20 @@ def _run_analysis(N0, r_frame, K, t_max=30, steps=500,
         "  Euler  [O(h)]:\n"
         "    Nₙ₊₁ = Nₙ + h · f(Nₙ)\n\n"
         "  Heun / Euler mejorado  [O(h²)]:\n"
-        "    k₁   = f(Nₙ)\n"
-        "    k₂   = f(Nₙ + h·k₁)\n"
-        "    Nₙ₊₁ = Nₙ + h/2 · (k₁ + k₂)\n\n"
+        "    k₁   = f(Xₙ, Yₙ)\n"
+        "    Y*ₙ₊₁ = Yₙ + h·k₁          ← predictor\n"
+        "    Xₙ₊₁ = Xₙ + h\n"
+        "    k₂   = f(Xₙ₊₁, Y*ₙ₊₁)\n"
+        "    Yₙ₊₁ = Yₙ + h/2·(k₁+k₂)   ← corrector\n\n"
         "  Laplace (linealización x = N−K):\n"
         "    dx/dt = −r·x\n"
         "    X(s) = x₀ / (s + r)\n"
         "    N(t) ≈ K + (N₀−K)·e^{−rt}\n"
-        "    ✔ exacta cerca de K,  ✗ lejos de K"
+        "    ✔ exacta cerca de K,  ✗ lejos de K\n\n"
+        "  Errores:\n"
+        "    Eₐ  = |Yₙ₊₁ − Y_exacta|\n"
+        "    Er  = Eₐ / |Y_exacta|\n"
+        "    Er% = Er × 100"
     )
 
     col_env = ""
@@ -619,37 +671,41 @@ def _run_analysis(N0, r_frame, K, t_max=30, steps=500,
             f"  Nutrientes:   {factor_values.get('nutrients', 0):.1f} %\n\n"
             f"  Microbio: {microbe_name}"
         )
-    if lv_active and lv_eq_exists:
-        col_env += (
-            f"\n\n  LOTKA-VOLTERRA\n"
-            f"  {'─'*30}\n"
-            f"  α₁₂={alpha12:.2f}  α₂₁={alpha21:.2f}\n"
-            f"  N*={N_star:.0f}   M*={M_star:.0f}\n"
-            f"  λ₁={eigenvalues[0].real:+.3f}  λ₂={eigenvalues[1].real:+.3f}\n"
-            + ("  Eq. ESTABLE ✔" if np.all(eigenvalues.real < 0)
-               else "  Eq. INESTABLE ✗")
-        )
 
     box_kw = dict(va="top", fontfamily="monospace", fontsize=FS_BOX)
 
-    ax_info.text(0.01, 0.97, col_params, transform=ax_info.transAxes,
+    # Tabla numérica (encabezado explica qué h usa)
+    tbl_header = (
+        "  TABLA NUMÉRICA — Euler vs Heun  "
+        f"(h = {h_actual:.4f} días — MISMO paso que Gráfica 1)\n"
+        f"  Eₐ = error absoluto  |  Er = error relativo  |  Er% = error porcentual  "
+        f"|  Y*ₙ₊₁ = predictor Euler (corrector no aplicado)"
+    )
+    tbl_text = tbl_header + "\n" + "\n".join(table_rows)
+
+    ax_info.text(0.00, 0.99, tbl_text, transform=ax_info.transAxes,
+                 color="#ddddee", fontsize=FS_BOX, va="top",
+                 fontfamily="monospace",
+                 bbox=dict(boxstyle="round,pad=0.5", facecolor="#080818",
+                           edgecolor="#2a2a4a", alpha=0.95))
+
+    ax_info.text(0.00, 0.42, col_params, transform=ax_info.transAxes,
                  color="#88ffcc", **box_kw,
                  bbox=dict(boxstyle="round,pad=0.5", facecolor="#051208",
                            edgecolor="#1a4a25", alpha=0.92))
-    ax_info.text(0.36, 0.97, col_formulas, transform=ax_info.transAxes,
+    ax_info.text(0.23, 0.42, col_formulas, transform=ax_info.transAxes,
                  color="#aaddff", **box_kw,
                  bbox=dict(boxstyle="round,pad=0.5", facecolor="#06061a",
                            edgecolor="#2a2a55", alpha=0.92))
     if col_env:
-        ax_info.text(0.70, 0.97, col_env, transform=ax_info.transAxes,
+        ax_info.text(0.52, 0.42, col_env, transform=ax_info.transAxes,
                      color="#ffdd99", **box_kw,
                      bbox=dict(boxstyle="round,pad=0.5", facecolor="#141000",
                                edgecolor="#443800", alpha=0.92))
 
     # ── Guardar ────────────────────────────────────────────────────────────
     timestamp   = datetime.now().strftime("%Y%m%d_%H%M%S")
-    suffix      = "invasion_" if lv_active else ""
-    nombre      = f"analisis_{suffix}{timestamp}.png"
+    nombre      = f"analisis_{timestamp}.png"
     output_path = os.path.join(os.path.dirname(__file__), "data", nombre)
 
     os.makedirs(os.path.dirname(output_path), exist_ok=True)

@@ -357,7 +357,7 @@ class InvasionGraph:
         pygame.draw.rect(surface, (140, 40, 40), (x, y, w, h), 2, border_radius=10)
  
         # Título
-        surface.blit(font.render("Competencia Lotka-Volterra", True, (255, 180, 180)),
+        surface.blit(font.render("Competencia", True, (255, 180, 180)),
                      (x + 8, y + 6))
  
         gx = x + 8;  gy = y + 26
