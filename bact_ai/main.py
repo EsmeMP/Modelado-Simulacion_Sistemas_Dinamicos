@@ -9,7 +9,6 @@ import cv2
 import random
 from collections import deque
 
-# Importamos módulos
 from config import *
 from microbes import get_all_microbes, get_microbe_data, calculate_growth_rate
 from simulation import Particle, create_explosion, handle_collisions, update_bacteria_growth
@@ -91,7 +90,7 @@ while running:
     dt = clock.tick(FPS) / 1000.0
     current_w, current_h = screen.get_size()
 
-    # ── DÍAS: cálculo desde tiempo absoluto (fuera del if not paused) ──
+    # ── DÍAS:
     if not paused:
         elapsed_ms     = pygame.time.get_ticks() - _start_ticks - _paused_accum
         simulated_days = max(0.0, (elapsed_ms / 1000.0) / SECONDS_PER_DAY)
@@ -143,7 +142,7 @@ while running:
                     )
                     for _ in range(INITIAL_PARTICLES)
                 ]
-                # Reset completo de días
+                
                 simulated_days = 0.0
                 _start_ticks   = pygame.time.get_ticks()
                 _paused_accum  = 0
@@ -156,7 +155,7 @@ while running:
             elif event.key == pygame.K_b:
                 import simulation as _sim_mod
 
-                # Fuente de verdad: buscar directamente en partículas
+            
                 invasoras_vivas = [p for p in particles
                                    if p.is_bacteria
                                    and p.microbe_key != current_microbe
@@ -173,7 +172,7 @@ while running:
                     invasion_graph.clear()
                     gesture_text = f"Antibiótico: -{eliminadas} invasoras"
                 else:
-                    # Sin invasoras activas — antibiótico elimina nativas
+                    
                     antes = len(particles)
                     particles[:] = [p for p in particles
                                     if not (p.is_bacteria
@@ -286,7 +285,7 @@ while running:
 
     hand_forces    = []
     vortex_centers = []
-    _kb_gesture    = gesture_text  # guardar texto de teclado
+    _kb_gesture    = gesture_text  
 
     if result and not custom_form.active:
         frame = gesture_controller.draw_landmarks(frame, result)
@@ -295,7 +294,6 @@ while running:
                 result, current_w, current_h,
                 temp, humidity, ph, light, current_microbe
             )
-        # Preservar texto de teclado importante
         if any(w in _kb_gesture for w in
                ["Antibiótico", "Invasión", "Extinción", "Nutrientes repuestos"]):
             gesture_text = _kb_gesture

@@ -36,24 +36,27 @@ PROYECTOS = {
     "bact_ai": {
         "nombre":      "GestBact AI",
         "descripcion": "Simulador de bacterias con 5 factores científicos controlados por gestos de mano.",
-        "icono":       "🦠",
+        "icono_png":   "bacteria.png",
+        "icono_gif":   "bacteria.gif",
         "script":      "bact_ai/main.py",          # relativo a BASE_DIR
         "cwd":         "bact_ai",                  # relativo a BASE_DIR  ← IMPORTANTE
         
     },
     "proyecto2": {
-        "nombre":      "Proyecto 2",
-        "descripcion": "Próximamente — agrega aquí tu segundo proyecto.",
-        "icono":       "🛻",
-        "script":      None,                       # None = aún no disponible
+        "nombre":      "Suspension",
+        "descripcion": "Siumulación interactica de un sistema de suspensión en tiempo real.",
+        "icono_png":   "auto.png",
+        "icono_gif":   "auto.gif",
+        "script":      "suspension/main.py",                       # None = aún no disponible
         "cwd":         None,
        
     },
     "proyecto3": {
-        "nombre":      "Proyecto 3",
+        "nombre":      "Particle Movement",
         "descripcion": "Simulación interactiva de partículas con amortiguamiento y ruido en tiempo real.",
-        "icono":       "🪄",
-        "script":      "particles/file.py",
+        "icono_png":   "particulas.png",
+        "icono_gif":   "particulas.gif",
+        "script":      "particles/main.py",
         "cwd":         "particles",
        
     },

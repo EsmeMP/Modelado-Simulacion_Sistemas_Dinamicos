@@ -30,7 +30,7 @@ MAX_NUTRIENTS = 100.0
 
 # freno de velocidad
 DAMPING = 0.96 
-# delta time (tiempo por frame)
+#  (tiempo por frame)
 DT = 0.016
 
 # solo hacer colision si las particulas estan a menos de X pixeles

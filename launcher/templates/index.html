@@ -348,6 +348,13 @@
   z-index: 0;
   pointer-events: none;
 }
+
+.card-icon img {
+  width: 42px;
+  height: 42px;
+  object-fit: contain;
+  display: block;
+}
   </style>
 </head>
 <body>
@@ -379,7 +386,14 @@
     {% set disponible = p.script is not none %}
     <div class="card {{ 'disponible' if disponible else 'proximamente' }}" data-id="{{ pid }}">
       <span class="card-idx">{{ '%02d'|format(loop.index) }}</span>
-      <span class="card-icon">{{ p.icono }}</span>
+      <span class="card-icon">
+  <img 
+    src="{{ url_for('static', filename=p.icono_png) }}" 
+    data-gif="{{ url_for('static', filename=p.icono_gif) }}"
+    data-png="{{ url_for('static', filename=p.icono_png) }}"
+    class="icon-img"
+  >
+</span>
       <div class="card-title">{{ p.nombre }}</div>
       <div class="card-desc">{{ p.descripcion }}</div>
 
@@ -527,6 +541,19 @@ function animateParticles() {
 
 animateParticles();
 
+
+document.querySelectorAll('.card').forEach(card => {
+  const img = card.querySelector('.icon-img');
+  if (!img) return;
+
+  card.addEventListener('mouseenter', () => {
+    img.src = img.dataset.gif;
+  });
+
+  card.addEventListener('mouseleave', () => {
+    img.src = img.dataset.png;
+  });
+});
 </script>
 </body>
 </html>

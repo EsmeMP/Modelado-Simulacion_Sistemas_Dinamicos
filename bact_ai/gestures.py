@@ -27,24 +27,24 @@ class GestureController:
         self.current_microbe_index = 0
         self.microbe_list          = get_all_microbes()
         self.last_gesture_time     = 0
-        self.gesture_cooldown      = 350     # ms entre gestos
+        self.gesture_cooldown      = 350     
 
-        # Suavizado de valores — evita saltos bruscos
+        
         self._smooth_temp     = 25.0
         self._smooth_humidity = 50.0
         self._smooth_ph       = 7.0
         self._smooth_light    = 30.0
-        self._alpha           = 0.15   # factor de suavizado (0=nada, 1=instantáneo)
+        self._alpha           = 0.15   
 
         # Historial de dedos para estabilizar el conteo
         self._dedos_history   = []
-        self._history_len     = 4       # frames para votar el gesto
+        self._history_len     = 4       
         self.pause_triggered = False
 
     # ── Helpers ──────────────────────────────────────────────────────────────
 
     def _smooth(self, current, target):
-        """Exponential moving average para suavizar valores."""
+        
         return current + self._alpha * (target - current)
 
     def _is_hand_frontal(self, hand_landmarks):
@@ -54,11 +54,10 @@ class GestureController:
         (relación ancho/alto < 0.3) probablemente es un perfil.
         Retorna True si la mano está de frente (válida).
         """
-        # Puntos de referencia: base del meñique (17) y base del índice (5)
         p5  = hand_landmarks.landmark[5]
         p17 = hand_landmarks.landmark[17]
-        p0  = hand_landmarks.landmark[0]   # muñeca
-        p9  = hand_landmarks.landmark[9]   # medio de la palma
+        p0  = hand_landmarks.landmark[0]   
+        p9  = hand_landmarks.landmark[9]   
 
         ancho = abs(p5.x - p17.x)
         alto  = abs(p0.y - p9.y)
@@ -67,7 +66,7 @@ class GestureController:
             return False
 
         ratio = ancho / alto
-        # Si la mano es muy estrecha → perfil → ignorar
+        
         return ratio > 0.28
 
     def _count_fingers(self, hand_landmarks):
@@ -80,7 +79,6 @@ class GestureController:
         for tip_id, pip_id in [(8, 6), (12, 10), (16, 14), (20, 18)]:
             tip = hand_landmarks.landmark[tip_id]
             pip = hand_landmarks.landmark[pip_id]
-            # Umbral más estricto: 0.04 en vez de 0.02
             if tip.y < pip.y - 0.04:
                 dedos += 1
         return dedos
@@ -196,8 +194,8 @@ class GestureController:
                     gesture_text = f"pH: {ph:.2f}"
                 else:
                     # 4 derecha → pH también (consistencia)
-                    target = float(np.clip(normalized_y * 100, 0, 100))   # ← rango de luz
-                    self._smooth_light = self._smooth(self._smooth_light, target)  # ← actualiza light
+                    target = float(np.clip(normalized_y * 100, 0, 100))   
+                    self._smooth_light = self._smooth(self._smooth_light, target) 
                     light = self._smooth_light
                     gesture_text = f"Luz UV: {light:.0f}%"
 

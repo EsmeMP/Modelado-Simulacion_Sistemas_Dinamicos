@@ -14,7 +14,7 @@ microbes_db = {
     "E. coli": {
         "name": "Escherichia coli",
         "type": "bacteria",
-        "shape": "bacilo_peritrico",     # cápsula + flagelos alrededor
+        "shape": "bacilo_peritrico",    
         "optimal_temp": 37.0,
         "temp_range": (10.0, 45.0),
         "optimal_humidity": 80.0,
@@ -29,7 +29,7 @@ microbes_db = {
     "Salmonella": {
         "name": "Salmonella enterica",
         "type": "bacteria",
-        "shape": "bacilo_peritrico",     # igual que E. coli pero más larga
+        "shape": "bacilo_peritrico",     
         "optimal_temp": 37.0,
         "temp_range": (8.0, 45.0),
         "optimal_humidity": 75.0,
@@ -44,7 +44,7 @@ microbes_db = {
     "Staphylococcus": {
         "name": "Staphylococcus aureus",
         "type": "bacteria",
-        "shape": "coco",                 # esférico, sin flagelos
+        "shape": "coco",                 
         "optimal_temp": 37.0,
         "temp_range": (15.0, 45.0),
         "optimal_humidity": 65.0,
@@ -59,7 +59,7 @@ microbes_db = {
     "Influenza": {
         "name": "Virus Influenza",
         "type": "virus",
-        "shape": "virus",                # esfera con espículas
+        "shape": "virus",              
         "optimal_temp": 15.0,
         "temp_range": (5.0, 25.0),
         "optimal_humidity": 25.0,
@@ -74,7 +74,7 @@ microbes_db = {
     "Pseudomonas": {
         "name": "Pseudomonas aeruginosa",
         "type": "bacteria",
-        "shape": "bacilo_polar",         # cápsula + 1 flagelo en la punta
+        "shape": "bacilo_polar",        
         "optimal_temp": 30.0,
         "temp_range": (10.0, 42.0),
         "optimal_humidity": 85.0,
@@ -154,7 +154,7 @@ def _sanitize_microbe(key, data):
     if "optimal_humidity" in data:
         data["optimal_humidity"] = max(0.0, min(100.0, float(data["optimal_humidity"])))
     data.setdefault("nutrient_consumption", 0.005)
-    data.setdefault("shape", "bacilo_peritrico")   # shape por defecto
+    data.setdefault("shape", "bacilo_peritrico")  
     return data
 
 
