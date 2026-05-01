@@ -1,13 +1,14 @@
 {
-  "gghhg": {
-    "name": "ffhhfg",
+  "lactobaci": {
+    "name": "lact",
     "type": "bacteria",
-    "optimal_temp": 89.0,
+    "shape": "bacilo_polar",
+    "optimal_temp": 30.0,
     "temp_range": [
-      80.0,
-      90.0
+      25.0,
+      30.0
     ],
-    "optimal_humidity": 90.0,
+    "optimal_humidity": 9.0,
     "optimal_ph": 9.0,
     "ph_range": [
       8.5,
@@ -17,34 +18,10 @@
     "nutrient_consumption": 0.005,
     "base_rate": 0.1,
     "color": [
-      54,
-      80,
-      89
+      239,
+      200,
+      123
     ],
-    "description": "90"
-  },
-  "nueva": {
-    "name": "nueva",
-    "type": "bacteria",
-    "optimal_temp": 89.0,
-    "temp_range": [
-      2.0,
-      23.0
-    ],
-    "optimal_humidity": 20.0,
-    "optimal_ph": 9.0,
-    "ph_range": [
-      8.5,
-      9.0
-    ],
-    "light_sensitivity": 1.0,
-    "nutrient_consumption": 0.005,
-    "base_rate": 0.1,
-    "color": [
-      245,
-      24,
-      3
-    ],
-    "description": "rndnfdf"
+    "description": "prueba"
   }
 }

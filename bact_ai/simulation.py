@@ -206,7 +206,7 @@ class Particle:
 
         # 1 flagelo largo en el extremo izquierdo (posterior)
         flag_color = tuple(max(0, c - 50) for c in color[:3])
-        flag_len   = int(size * 6.5)   # más largo que peritrico
+        flag_len   = int(size * 6.5)  
         flag_segs  = 9
         phase_off  = self.age * 0.22
 
@@ -395,7 +395,6 @@ def update_bacteria_growth(particles, temp, humidity, ph, light, nutrients,
 
     # ── Detectar si hay invasores ─────────────────────────────────────────
     total    = sum(1 for p in particles if p.is_bacteria)
-    # ✅ Reemplaza ese bloque por:
     invaders = sum(1 for p in particles 
                 if p.is_bacteria 
                 and p.microbe_key != microbe_key
@@ -413,7 +412,7 @@ def update_bacteria_growth(particles, temp, humidity, ph, light, nutrients,
     if _found_key is not None:
         invasion_key = _found_key
     elif invaders == 0:
-        invasion_key = None   # solo limpiar cuando realmente no queda ninguno vivo
+        invasion_key = None   
 
     # ── Datos de ambos tipos ──────────────────────────────────────────────
     data_native  = get_microbe_data(microbe_key)
@@ -480,7 +479,7 @@ def update_bacteria_growth(particles, temp, humidity, ph, light, nutrients,
             if nearby and random.random() < TOXIN_PROB:
                 p.stress_timer += 8
                 p.state = "stressed"
-                p.glow  = 0.6   # brillo rojizo al ser envenenado
+                p.glow  = 0.6   #al ser envenenado
 
         # ── MECANISMO 3: Cascada de colapso ──────────────────────────────
         # Si invasor supera 40%, nativos se estresan más rápido
@@ -506,7 +505,7 @@ def update_bacteria_growth(particles, temp, humidity, ph, light, nutrients,
                             p.pos[0] + random.uniform(-25, 25),
                             p.pos[1] + random.uniform(-25, 25),
                             is_bacteria=True,
-                            microbe_key=p.microbe_key  # ← hereda su propio tipo
+                            microbe_key=p.microbe_key  
                         ))
                         # ── MECANISMO 2: Competencia por nutrientes ───────
                         nutrients -= cost  # invasor consume 3x más
@@ -519,7 +518,6 @@ def contaminate(particles, current_w, current_h, invader_key, count=25):
     """
     Agrega bacterias invasoras en una zona aleatoria con efecto de invasión.
     """
-    # Zona aleatoria de aparición (evita bordes)
     zone_x = random.randint(current_w // 5, current_w * 4 // 5)
     zone_y = random.randint(current_h // 5, current_h * 4 // 5)
     zone_r = 80  # radio de la zona de invasión
@@ -533,7 +531,7 @@ def contaminate(particles, current_w, current_h, invader_key, count=25):
         p = Particle(x, y, is_bacteria=True, microbe_key=invader_key)
         p.vel   = np.array([random.uniform(-120, 120),
                             random.uniform(-120, 120)])
-        p.glow  = 1.5   # brillo máximo al aparecer
+        p.glow  = 1.5   
         p.state = "healthy"
         particles.append(p)
 
