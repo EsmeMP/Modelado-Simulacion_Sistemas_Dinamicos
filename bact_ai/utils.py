@@ -1,1 +1,0 @@
-# Funciones auxiliares (explosiones, cálculo de tasas, etc.)
