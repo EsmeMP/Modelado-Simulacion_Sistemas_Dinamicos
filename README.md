@@ -3,7 +3,7 @@
 > Tres simulaciones desarrolladas en Python para el curso de **Matemáticas para Ingeniería II**.  
 > Métodos numéricos (Euler, Heun, Laplace) aplicados a sistemas físicos reales.
 
-![index](/RealTimeSimulator_/bact_ai/assets/index.png)
+![index](./assets/index.png)
 
 ---
 
@@ -168,14 +168,10 @@ python main.py
 
 ---
 
-## Cómo agregar imágenes
+## Imágenes
 
-Crea una carpeta `assets/` en tu repo, sube tus screenshots y reemplaza estas líneas:
-
-```markdown
-![Bact_AI](/RealTimeSimulator_/bact_ai/assets/bact.png)
-![Bact_AI - Stadistics](/RealTimeSimulator_/bact_ai/assets/stadistics.png)
-```
+![Bact_AI](./assets/bact.png)
+![Bact_AI - Stadistics](./assets/stadistics.png)
 
 ---
 
