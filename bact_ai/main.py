@@ -7,6 +7,8 @@ import sys
 import numpy as np
 import cv2
 import random
+import threading
+from splash import draw_splash
 from collections import deque
 
 from config import *
@@ -70,7 +72,28 @@ light_slider    = Slider(450, 215, 280,  0,   100,   "Iluminación UV (%)", ORAN
 nutrient_slider = Slider(450, 265, 280,  0,   100,   "Nutrientes (%)",      GREEN)
 
 population_graph   = PopulationGraph(780, 65, 460, 180)
-gesture_controller = GestureController()
+
+WIN = "Camara - GestBact AI"
+cv2.namedWindow(WIN, cv2.WINDOW_NORMAL)
+cv2.resizeWindow(WIN, 600, 360)
+
+ready = threading.Event()
+
+def _cargar():
+    global gesture_controller
+    gesture_controller = GestureController()
+    ready.set()
+
+threading.Thread(target=_cargar, daemon=True).start()
+
+while not ready.is_set():
+    cv2.imshow(WIN, draw_splash(0.5, "Cargando camara y MediaPipe..."))
+    cv2.waitKey(30)
+
+cv2.imshow(WIN, draw_splash(1.0, "Todo listo!"))
+cv2.waitKey(600)
+# === FIN SPLASH ===
+
 custom_form        = CustomMicrobeForm()
 stress_graph       = StressGraph()
 invasion_graph     = InvasionGraph()
