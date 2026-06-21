@@ -26,39 +26,52 @@ BASE_DIR    = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 PYTHON      = sys.executable   # usa el mismo python/venv con que corres Flask
 
 # ─────────────────────────────────────────────────────────────
+#  DATOS
+# ─────────────────────────────────────────────────────────────
+AUTOR = {
+    "nombre":      "",
+    "iniciales":   "",
+    "carrera":     "",
+    "semestre":    "",
+    "conferencia": "",
+
+    "sitio": "tu-portafolio.com",
+}
+
+# ─────────────────────────────────────────────────────────────
 #  REGISTRO DE PROYECTOS
 #  script  → relativo a BASE_DIR  (matematicas/)
 #  cwd     → directorio de trabajo al lanzar el script
 #            bact_ai/main.py necesita cwd=bact_ai/ para que
 #            sus imports relativos funcionen
+#  visual  → tipo de mini-animación en vivo dentro de la tarjeta
+#            ("bacteria" | "wave" | "particles")
+#  icono   → emoji que se muestra junto al título de la tarjeta
 # ─────────────────────────────────────────────────────────────
 PROYECTOS = {
     "bact_ai": {
         "nombre":      "GestBact AI",
         "descripcion": "Simulador de bacterias con 5 factores científicos controlados por gestos de mano.",
-        "icono_png":   "bacteria.png",
-        "icono_gif":   "bacteria.gif",
+        "visual":      "bacteria",
+        "tags":        ["Pygame", "MediaPipe", "EDO logística"],
         "script":      "bact_ai/main.py",          # relativo a BASE_DIR
         "cwd":         "bact_ai",                  # relativo a BASE_DIR  ← IMPORTANTE
-        
     },
     "proyecto2": {
-        "nombre":      "Suspension",
-        "descripcion": "Siumulación interactica de un sistema de suspensión en tiempo real.",
-        "icono_png":   "auto.png",
-        "icono_gif":   "auto.gif",
-        "script":      "suspension/main.py",                       # None = aún no disponible
+        "nombre":      "Suspensión",
+        "descripcion": "Simulación de un sistema de suspensión masa-resorte-amortiguador en tiempo real.",
+        "visual":      "wave",
+        "tags":        ["OpenCV", "Sliders en vivo", "2do orden"],
+        "script":      "suspension/main.py",       # None = aún no disponible
         "cwd":         None,
-       
     },
     "proyecto3": {
         "nombre":      "Particle Movement",
         "descripcion": "Simulación interactiva de partículas con amortiguamiento y ruido en tiempo real.",
-        "icono_png":   "particulas.png",
-        "icono_gif":   "particulas.gif",
+        "visual":      "particles",
+        "tags":        ["Audio", "Numpy", "Laplace"],
         "script":      "particles/main.py",
         "cwd":         "particles",
-       
     },
 }
 
@@ -72,7 +85,7 @@ _procesos: dict[str, subprocess.Popen] = {}
 
 @app.route("/")
 def index():
-    return render_template("index.html", proyectos=PROYECTOS)
+    return render_template("index.html", proyectos=PROYECTOS, autor=AUTOR)
 
 
 @app.route("/iniciar/<pid>")
@@ -98,7 +111,7 @@ def iniciar(pid: str):
     try:
         proc = subprocess.Popen(
             [PYTHON, script_abs],
-            cwd=cwd_abs,            # ← bact_ai/ para que config.py se importe bien
+            cwd=cwd_abs,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
