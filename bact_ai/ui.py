@@ -887,10 +887,195 @@ def _draw_starvation_overlay(surface, w, h, particles):
         "E  →  Activar modo extinción para acelerar la muerte",
         True, (160, 80, 80)), (px_ov + 20, py_ov + 158))
 
+def draw_reset_charge_overlay(surface, progress: float):
+    """
+    Overlay dramático de carga en la ventana pygame durante el gesto de reinicio.
+    progress: 0.0 → 1.0
+
+    Efecto:
+      · Viñeta roja que crece desde los bordes
+      · Anillo de carga central con arco animado
+      · Texto de cuenta regresiva
+      · Líneas de scan que se aceleran
+    """
+    if progress <= 0.0:
+        return
+
+    import math
+    w, h = surface.get_size()
+    t    = _frame_counter   # usa el contador global de ui.py
+
+    # ── 1. Viñeta roja desde los bordes ──────────────────────────────
+    vignette = pygame.Surface((w, h), pygame.SRCALPHA)
+    max_r    = int(min(w, h) * 0.72)
+    layers   = 12
+    for i in range(layers, 0, -1):
+        r     = int(max_r * i / layers)
+        alpha = int(progress * 80 * (1 - i / layers))
+        pygame.draw.circle(vignette, (180, 0, 0, alpha), (w // 2, h // 2), r, 30)
+    surface.blit(vignette, (0, 0))
+
+    # ── 2. Oscurecer pantalla progresivamente ────────────────────────
+    dark = pygame.Surface((w, h), pygame.SRCALPHA)
+    dark.fill((0, 0, 0, int(progress * 110)))
+    surface.blit(dark, (0, 0))
+
+    # ── 3. Líneas de scan que se aceleran ────────────────────────────
+    scan_speed = int(2 + progress * 14)
+    scan_y     = (t * scan_speed) % h
+    for offset in range(0, h, max(4, int(40 * (1 - progress)))):
+        sy = (scan_y + offset) % h
+        scan_s = pygame.Surface((w, 1), pygame.SRCALPHA)
+        scan_s.fill((200, 0, 0, int(progress * 30)))
+        surface.blit(scan_s, (0, sy))
+
+    # ── 4. Anillo de carga central ───────────────────────────────────
+    cx, cy = w // 2, h // 2
+    R_out  = 80
+    R_in   = 58
+
+    # Fondo del anillo
+    ring_bg = pygame.Surface((R_out * 2 + 10, R_out * 2 + 10), pygame.SRCALPHA)
+    pygame.draw.circle(ring_bg, (10, 0, 0, 180), (R_out + 5, R_out + 5), R_out)
+    surface.blit(ring_bg, (cx - R_out - 5, cy - R_out - 5))
+
+    # Arco de progreso — dibujado como segmentos de línea gruesa
+    angle_total = int(360 * progress)
+    for deg in range(0, angle_total, 3):
+        rad    = math.radians(deg - 90)
+        x1     = cx + int(R_in  * math.cos(rad))
+        y1     = cy + int(R_in  * math.sin(rad))
+        x2     = cx + int(R_out * math.cos(rad))
+        y2     = cy + int(R_out * math.sin(rad))
+        # Color: naranja → rojo intenso según progreso
+        r_col  = 255
+        g_col  = max(0, int(160 * (1 - progress)))
+        pygame.draw.line(surface, (r_col, g_col, 0), (x1, y1), (x2, y2), 3)
+
+    # Punta del arco con brillo
+    if angle_total > 0:
+        tip_rad = math.radians(angle_total - 90)
+        tip_x   = cx + int((R_in + R_out) // 2 * math.cos(tip_rad))
+        tip_y   = cy + int((R_in + R_out) // 2 * math.sin(tip_rad))
+        glow_r  = int(8 + 4 * abs(math.sin(t * 0.2)))
+        pygame.draw.circle(surface, (255, 255, 100), (tip_x, tip_y), glow_r)
+        pygame.draw.circle(surface, (255, 200,  50), (tip_x, tip_y), glow_r - 3)
+
+    # Borde base del anillo
+    pygame.draw.circle(surface, (60, 20, 20), (cx, cy), R_out, 2)
+    pygame.draw.circle(surface, (40, 10, 10), (cx, cy), R_in,  2)
+
+    # ── 5. Pulso interior ────────────────────────────────────────────
+    pulse_r = int(R_in * 0.6 * (0.85 + 0.15 * abs(math.sin(t * 0.15))))
+    pulse_s = pygame.Surface((pulse_r * 2, pulse_r * 2), pygame.SRCALPHA)
+    pygame.draw.circle(pulse_s, (180, 0, 0, int(progress * 100)),
+                       (pulse_r, pulse_r), pulse_r)
+    surface.blit(pulse_s, (cx - pulse_r, cy - pulse_r))
+
+    # ── 6. Texto central ─────────────────────────────────────────────
+    pct      = int(progress * 100)
+    pct_surf = big_font.render(f"{pct}%", True, (255, max(0, 200 - pct * 2), 0))
+    surface.blit(pct_surf, (cx - pct_surf.get_width() // 2,
+                             cy - pct_surf.get_height() // 2))
+
+    # ── 7. Etiqueta superior ─────────────────────────────────────────
+    blink = int(t * 0.12) % 2 == 0
+    label_col = (255, 80, 0) if blink else (200, 40, 0)
+    label = big_font.render(" REINICIANDO... ", True, label_col)
+    surface.blit(label, (cx - label.get_width() // 2, cy - R_out - 44))
+
+    # ── 8. Instrucción inferior ──────────────────────────────────────
+    hint = font.render("Abre las manos para cancelar", True, (140, 60, 60))
+    surface.blit(hint, (cx - hint.get_width() // 2, cy + R_out + 18))
 
 # ========================
 # FUNCIONES PRINCIPALES
 # ========================
+
+# ── Pega este bloque en ui.py, justo ANTES de la función draw_ui() ──────────
+
+# Colores pygame por parámetro (mismo esquema visual que el overlay CV2)
+PARAM_COLORS_PG = {
+    "Temperatura":  (255, 220,  50),
+    "Humedad":      ( 80, 220, 255),
+    "pH":           (200,  80, 255),
+    "Luz UV":       (255, 160,  50),
+    "Nutrientes":   ( 80, 220,  80),
+    "—":            (140, 140, 140),
+}
+
+
+def draw_hand_indicator_panel(surface, hand_states: dict):
+    """
+    Panel compacto debajo del panel de info (lado izquierdo).
+    Muestra en tiempo real qué parámetro controla cada mano detectada.
+    Llámalo desde main.py DESPUÉS de draw_ui_overlay().
+    """
+    if not hand_states:
+        _draw_no_hands(surface)
+        return
+
+    pw   = SIDEBAR_W - 10
+    ph_p = 10 + len(hand_states) * 56 + 10
+    px, py = 8, 396   # debajo del panel de info (que termina en y≈388)
+
+    _draw_panel_bg(surface, px, py, pw, ph_p,
+                   (60, 60, 90), alpha=PANEL_ALPHA)
+
+    surface.blit(font.render("Manos activas", True, HUD_MUTED),
+                 (px + 12, py + 8))
+
+    row_y = py + 28
+    for side in ("left", "right"):
+        if side not in hand_states:
+            continue
+        state  = hand_states[side]
+        param  = state.get("param", "—")
+        value  = state.get("value", "")
+        dedos  = state.get("dedos", 0)
+        label  = state.get("side_label", "?")
+        color  = PARAM_COLORS_PG.get(param, PARAM_COLORS_PG["—"])
+
+        # Fondo de fila con tinte del color del parámetro
+        row_bg = pygame.Surface((pw - 16, 48), pygame.SRCALPHA)
+        pygame.draw.rect(row_bg, (*color, 22), (0, 0, pw - 16, 48), border_radius=8)
+        surface.blit(row_bg, (px + 8, row_y))
+        pygame.draw.rect(surface, color,
+                         (px + 8, row_y, pw - 16, 48), 1, border_radius=8)
+
+        # Barra lateral de color
+        pygame.draw.rect(surface, color,
+                         (px + 8, row_y + 4, 4, 40), border_radius=2)
+
+        # Lado + parámetro
+        surface.blit(font.render(f"✋ {label}", True, color),
+                     (px + 18, row_y + 6))
+        surface.blit(font.render(param, True, (210, 210, 210)),
+                     (px + 18, row_y + 26))
+
+        # Valor (alineado a la derecha)
+        val_surf = font.render(value, True, color)
+        surface.blit(val_surf,
+                     (px + pw - val_surf.get_width() - 16, row_y + 16))
+
+        # Mini-barra de dedos (5 cuadraditos)
+        dot_x = px + pw - 82
+        dot_y = row_y + 34
+        for d in range(5):
+            rect = pygame.Rect(dot_x + d * 13, dot_y, 10, 8)
+            pygame.draw.rect(surface, color if d < dedos else (50, 50, 65),
+                             rect, border_radius=2)
+
+        row_y += 56
+
+
+def _draw_no_hands(surface):
+    """Panel tenue cuando no hay manos detectadas."""
+    pw, ph_p = SIDEBAR_W - 10, 40
+    px, py   = 8, 396
+    _draw_panel_bg(surface, px, py, pw, ph_p, (50, 50, 70), alpha=70)
+    txt = font.render("Sin manos detectadas", True, (80, 80, 100))
+    surface.blit(txt, (px + pw // 2 - txt.get_width() // 2, py + 12))
 
 def draw_ui(surface, temp, humidity, ph, light, nutrients, current_microbe,
             simulated_days, particles, population_graph, stress_graph,
