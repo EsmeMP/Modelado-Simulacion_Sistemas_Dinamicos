@@ -1,6 +1,11 @@
 # ========================
 # MAIN.PY - GestBact AI con 5 Factores (Temp, Humedad, pH, Luz, Nutrientes)
 # ========================
+# FIXES CRÍTICOS APLICADOS:
+#   [1] Todos los `import` movidos fuera del loop principal
+#   [2] simulation_history e invasion_history → deque(maxlen=500) O(1)
+#   [3] np.linalg.norm cacheado en p.speed para evitar cálculo triple por partícula
+# ========================
 
 import pygame
 import sys
@@ -8,22 +13,24 @@ import numpy as np
 import cv2
 import random
 import threading
-from splash import draw_splash
+import subprocess
 from collections import deque
+from splash import draw_splash
 
 from config import *
 from microbes import get_all_microbes, get_microbe_data, calculate_growth_rate
-from simulation import Particle, create_explosion, handle_collisions, update_bacteria_growth
+from simulation import Particle, create_explosion, handle_collisions, update_bacteria_growth, contaminate
 from gestures import GestureController
 from ui import (Slider, PopulationGraph, draw_ui, CustomMicrobeForm,
                 draw_ui_overlay, StressGraph, InvasionGraph,
                 draw_hand_indicator_panel, draw_reset_charge_overlay)
-
-# from ui import Slider, PopulationGraph, draw_ui, CustomMicrobeForm, draw_ui_overlay, StressGraph, InvasionGraph
 from analysis import show_analysis
 
-from simulation import Particle, create_explosion, handle_collisions, update_bacteria_growth, contaminate
-from microbes import get_all_microbes, get_microbe_data, calculate_growth_rate, get_invader
+# ── [FIX 1] imports de módulos propios movidos aquí, fuera del loop ──────────
+import simulation as _sim_mod
+import analysis   as _ana_mod
+
+from microbes import get_invader
 
 from predictor_bridge import PredictorBridge
 from predictor_window import PredictorWindow
@@ -32,7 +39,7 @@ import os
 os.environ["MPLBACKEND"] = "TkAgg"
 
 import matplotlib
-matplotlib.use('TkAgg')  
+matplotlib.use('TkAgg')
 
 predictor_bridge = PredictorBridge(capacity=MAX_PARTICLES)
 predictor_window = PredictorWindow(predictor_bridge)
@@ -58,17 +65,20 @@ paused            = False
 show_trails       = True
 enable_collisions = True
 
-# === SISTEMA DE DÍAS — UN SOLO MÉTODO (tiempo absoluto) ===
-SECONDS_PER_DAY = 5.0       # 1 día simulado = 5 segundos reales
-simulated_days  = 0.0       # float continuo
+# === SISTEMA DE DÍAS ===
+SECONDS_PER_DAY = 5.0
+simulated_days  = 0.0
 _start_ticks    = pygame.time.get_ticks()
-_paused_accum   = 0         # ms totales pausados
-_pause_start    = 0         # ms cuando empezó la pausa actual
+_paused_accum   = 0
+_pause_start    = 0
 
-# === HISTORIAL DE POBLACIÓN ===
-simulation_history = []
-invasion_history   = []     # [(día, n_nativas, n_invasoras), ...]
+# ── [FIX 2] deque con maxlen → pop automático O(1), sin pop(0) O(n) ─────────
+simulation_history = deque(maxlen=500)
+invasion_history   = deque(maxlen=500)
 HISTORY_SAMPLE     = 10
+
+# ── [FIX 1b] Surface de trail reutilizable — creada una sola vez ─────────────
+_TRAIL_SURF = pygame.Surface((6, 6), pygame.SRCALPHA)
 
 # === PARTÍCULAS ===
 particles = [
@@ -88,7 +98,7 @@ ph_slider       = Slider(450, 165, 280,  4.0,   9.0, "pH",                  PURP
 light_slider    = Slider(450, 215, 280,  0,   100,   "Iluminación UV (%)", ORANGE)
 nutrient_slider = Slider(450, 265, 280,  0,   100,   "Nutrientes (%)",      GREEN)
 
-population_graph   = PopulationGraph(780, 65, 460, 180)
+population_graph = PopulationGraph(780, 65, 460, 180)
 
 WIN = "Camara - GestBact AI"
 cv2.namedWindow(WIN, cv2.WINDOW_NORMAL)
@@ -109,19 +119,45 @@ while not ready.is_set():
 
 cv2.imshow(WIN, draw_splash(1.0, "Todo listo!"))
 cv2.waitKey(600)
-# === FIN SPLASH ===
 
-custom_form        = CustomMicrobeForm()
-stress_graph       = StressGraph()
-invasion_graph     = InvasionGraph()
+custom_form   = CustomMicrobeForm()
+stress_graph  = StressGraph()
+invasion_graph = InvasionGraph()
 
-# === AUXILIARES ===
-running       = True
-gesture_text  = "Esperando manos..."
+running      = True
+gesture_text = "Esperando manos..."
 last_day_time = 0
 DAY_COOLDOWN  = 800
 
 print("GestBact AI iniciado con 5 factores científicos!")
+
+
+# ========================
+# HELPERS
+# ========================
+
+def _reset_simulation(w, h):
+    """Reinicia partículas, días e historiales."""
+    global simulated_days, _start_ticks, _paused_accum, _pause_start
+    particles.clear()
+    particles.extend([
+        Particle(
+            random.randint(80, w - 80),
+            random.randint(80, h - 150),
+            is_bacteria=True,
+            microbe_key=current_microbe
+        )
+        for _ in range(INITIAL_PARTICLES)
+    ])
+    simulated_days = 0.0
+    _start_ticks   = pygame.time.get_ticks()
+    _paused_accum  = 0
+    _pause_start   = 0
+    simulation_history.clear()
+    invasion_history.clear()
+    invasion_graph.clear()
+    population_graph.history.clear()
+
 
 # ========================
 # BUCLE PRINCIPAL
@@ -130,7 +166,7 @@ while running:
     dt = clock.tick(FPS) / 1000.0
     current_w, current_h = screen.get_size()
 
-    # ── DÍAS:
+    # ── DÍAS
     if not paused:
         elapsed_ms     = pygame.time.get_ticks() - _start_ticks - _paused_accum
         simulated_days = max(0.0, (elapsed_ms / 1000.0) / SECONDS_PER_DAY)
@@ -145,7 +181,6 @@ while running:
         elif event.type == pygame.VIDEORESIZE:
             screen = pygame.display.set_mode((event.w, event.h), pygame.RESIZABLE)
 
-        # Sliders
         for slider in (temp_slider, hum_slider, ph_slider, light_slider, nutrient_slider):
             if slider.handle_event(event):
                 temp      = temp_slider.value
@@ -154,7 +189,6 @@ while running:
                 light     = light_slider.value
                 nutrients = nutrient_slider.value
 
-        # Teclado
         if event.type == pygame.KEYDOWN:
 
             if custom_form.active:
@@ -172,35 +206,15 @@ while running:
                     _paused_accum += pygame.time.get_ticks() - _pause_start
 
             elif event.key == pygame.K_r:
-                particles.clear()
-                particles = [
-                    Particle(
-                        random.randint(80, current_w - 80),
-                        random.randint(80, current_h - 150),
-                        is_bacteria=True,
-                        microbe_key=current_microbe
-                    )
-                    for _ in range(INITIAL_PARTICLES)
-                ]
-                
-                simulated_days = 0.0
-                _start_ticks   = pygame.time.get_ticks()
-                _paused_accum  = 0
-                _pause_start   = 0
-                simulation_history.clear()
-                invasion_history.clear()
-                invasion_graph.clear()
-                population_graph.history.clear()
+                _reset_simulation(current_w, current_h)
+                _sim_mod.invasion_active = False
+                _sim_mod.invasion_key    = None
 
             elif event.key == pygame.K_b:
-                import simulation as _sim_mod
-
-            
                 invasoras_vivas = [p for p in particles
                                    if p.is_bacteria
                                    and p.microbe_key != current_microbe
                                    and p.state != "dead"]
-
                 if invasoras_vivas:
                     antes = len(particles)
                     particles[:] = [p for p in particles
@@ -212,7 +226,6 @@ while running:
                     invasion_graph.clear()
                     gesture_text = f"Antibiótico: -{eliminadas} invasoras"
                 else:
-                    
                     antes = len(particles)
                     particles[:] = [p for p in particles
                                     if not (p.is_bacteria
@@ -234,7 +247,6 @@ while running:
                 enable_collisions = not enable_collisions
 
             elif event.key == pygame.K_e:
-                import simulation as _sim_mod
                 _sim_mod.extinction_mode = not _sim_mod.extinction_mode
                 modo = "EXTINCIÓN" if _sim_mod.extinction_mode else "NORMAL"
                 gesture_text = f"Modo {modo} activado"
@@ -275,17 +287,13 @@ while running:
                             p.microbe_key = current_microbe
 
             elif event.key == pygame.K_m:
-                # ── Análisis matemático ──
-                import simulation as _sim_mod_m
-
                 r_actual = calculate_growth_rate(
                     temp, humidity, ph, light, nutrients, current_microbe
                 )
                 t_max_analisis = max(30.0, simulated_days * 2.0)
 
-                # Parámetros de invasión
-                _inv_active = _sim_mod_m.invasion_active
-                _inv_key    = _sim_mod_m.invasion_key
+                _inv_active = _sim_mod.invasion_active
+                _inv_key    = _sim_mod.invasion_key
                 _r_inv      = None
                 if _inv_active and _inv_key:
                     _r_inv = calculate_growth_rate(
@@ -306,7 +314,7 @@ while running:
                     K                  = MAX_PARTICLES,
                     t_max              = t_max_analisis,
                     steps              = 800,
-                    simulation_history = simulation_history.copy(),
+                    simulation_history = list(simulation_history),
                     microbe_name       = current_microbe,
                     factor_values      = {
                         "temp":      temp,
@@ -325,43 +333,24 @@ while running:
 
     hand_forces    = []
     vortex_centers = []
-    _kb_gesture    = gesture_text  
+    _kb_gesture    = gesture_text
 
     if result and not custom_form.active:
         frame = gesture_controller.draw_landmarks(frame, result)
         frame = gesture_controller.draw_hand_overlay_cv2(frame, result)
         hand_forces, vortex_centers, temp, humidity, ph, light, nutrients, current_microbe, gesture_text = \
-    gesture_controller.process_gestures(
-        result, current_w, current_h,
-        temp, humidity, ph, light, nutrients, current_microbe
-    )
+            gesture_controller.process_gestures(
+                result, current_w, current_h,
+                temp, humidity, ph, light, nutrients, current_microbe
+            )
         if any(w in _kb_gesture for w in
-                ["Antibiótico", "Invasión", "Extinción", "Nutrientes repuestos"]):
+               ["Antibiótico", "Invasión", "Extinción", "Nutrientes repuestos"]):
             gesture_text = _kb_gesture
 
-        # ── Gesto de reinicio ──────────────────────────────────────
         if gesture_controller.reset_triggered:
-            particles.clear()
-            particles = [
-                Particle(
-                    random.randint(80, current_w - 80),
-                    random.randint(80, current_h - 150),
-                    is_bacteria=True,
-                    microbe_key=current_microbe
-                )
-                for _ in range(INITIAL_PARTICLES)
-            ]
-            simulated_days = 0.0
-            _start_ticks   = pygame.time.get_ticks()
-            _paused_accum  = 0
-            _pause_start   = 0
-            simulation_history.clear()
-            invasion_history.clear()
-            invasion_graph.clear()
-            population_graph.history.clear()
-            import simulation as _sim_r
-            _sim_r.invasion_active = False
-            _sim_r.invasion_key    = None
+            _reset_simulation(current_w, current_h)
+            _sim_mod.invasion_active = False
+            _sim_mod.invasion_key    = None
             gesture_text = "¡Reinicio por gesto!"
 
     if gesture_controller.pause_triggered:
@@ -372,7 +361,6 @@ while running:
             _paused_accum += pygame.time.get_ticks() - _pause_start
         gesture_controller.pause_triggered = False
 
-
     # Sincronizar sliders
     temp_slider.update(temp)
     hum_slider.update(humidity)
@@ -381,7 +369,6 @@ while running:
 
     # ------------------- Simulación -------------------
     if not paused:
-        import simulation as _sim_upd
 
         for p in particles:
             total_force = np.zeros(2)
@@ -400,11 +387,14 @@ while running:
 
             p.update(total_force, dt)
 
-            # Límite de velocidad
+            # ── [FIX 3] Calcular speed una sola vez y cachear en p.speed ─────
+            spd = p.speed   # ya calculado en p.update()
+
+            # Límite de velocidad (usa el speed ya calculado)
             MAX_SPEED = 400.0
-            speed = np.linalg.norm(p.vel)
-            if speed > MAX_SPEED:
-                p.vel = (p.vel / speed) * MAX_SPEED
+            if spd > MAX_SPEED:
+                p.vel = (p.vel / spd) * MAX_SPEED
+                p.speed = MAX_SPEED
 
             # Paredes con empuje suave
             margin = 30
@@ -435,32 +425,29 @@ while running:
             "ph":         ph,
             "uv":         light / 100.0,
             "nut":        nutrients / 100.0,
-            "microbe": current_microbe,
+            "microbe":    current_microbe,
         })
-        # Entrenamiento incremental: le enseñamos la tasa observada al modelo
+
         if len(population_graph.history) >= 2:
             prev_pop = population_graph.history[-2]
             curr_pop = population_graph.history[-1]
             if prev_pop > 0:
                 observed_rate = (curr_pop - prev_pop) / prev_pop
                 X_row = [temp / 60.0, humidity / 100.0, ph / 9.0,
-                        light / 100.0, nutrients / 100.0]
+                         light / 100.0, nutrients / 100.0]
                 predictor_bridge.update_model(X_row, observed_rate)
-
 
         if enable_collisions and len(particles) < 600:
             handle_collisions(particles)
 
         population_graph.update(len(particles))
 
-        # ── Historial de población (para análisis logístico) ──────────
+        # ── Historial de población — deque, no necesita pop(0) ───────────────
         if not simulation_history or pygame.time.get_ticks() % HISTORY_SAMPLE == 0:
             simulation_history.append((simulated_days, len(particles)))
-            if len(simulation_history) > 500:
-                simulation_history.pop(0)
 
-        # ── Historial de invasión (para análisis Lotka-Volterra) ──────
-        if _sim_upd.invasion_active:
+        # ── Historial de invasión ─────────────────────────────────────────────
+        if _sim_mod.invasion_active:
             invasion_graph.update(particles, current_microbe)
             _nat_count = sum(1 for p in particles
                              if p.is_bacteria
@@ -472,10 +459,8 @@ while running:
             if (not invasion_history
                     or invasion_history[-1][0] != simulated_days):
                 invasion_history.append((simulated_days, _nat_count, _inv_count))
-                if len(invasion_history) > 500:
-                    invasion_history.pop(0)
 
-    # Explosión por gesto de pulgar (solo visual, no toca días)
+    # Explosión por gesto de pulgar
     current_time = pygame.time.get_ticks()
     if "¡+1 Día" in gesture_text and current_time - last_day_time > DAY_COOLDOWN:
         last_day_time = current_time
@@ -492,17 +477,17 @@ while running:
             simulated_days, particles, population_graph, stress_graph,
             temp_slider, hum_slider, ph_slider, light_slider, nutrient_slider)
 
-    # 2. Trails
+    # 2. Trails — reutiliza _TRAIL_SURF en lugar de crear Surface() por frame
     if show_trails and len(particles) < 500:
         for p in particles:
-            speed = np.linalg.norm(p.vel)
-            if speed > 25:
-                trail_surf = pygame.Surface((6, 6), pygame.SRCALPHA)
-                alpha = min(35, int(20 * (speed / 200)))
-                pygame.draw.circle(trail_surf, (*p.color[:3], alpha), (3, 3), 3)
-                screen.blit(trail_surf, (int(p.pos[0]) - 3, int(p.pos[1]) - 3))
+            spd = p.speed
+            if spd > 25:
+                alpha = min(35, int(20 * (spd / 200)))
+                _TRAIL_SURF.fill((0, 0, 0, 0))
+                pygame.draw.circle(_TRAIL_SURF, (*p.color[:3], alpha), (3, 3), 3)
+                screen.blit(_TRAIL_SURF, (int(p.pos[0]) - 3, int(p.pos[1]) - 3))
 
-    # 3. Bacterias
+    # 3. Bacterias (draw usa p.speed internamente, ya calculado)
     for p in particles:
         p.draw(screen)
 
@@ -523,15 +508,15 @@ while running:
         screen.blit(gesture_surf,
                     (current_w // 2 - gesture_surf.get_width() // 2, 25))
 
-    # 6. Formulario (siempre al frente)
+    # 6. Formulario
     custom_form.draw(screen)
 
-    import analysis as _ana_mod
+    # 7. Abrir análisis si está listo
     with _ana_mod._analysis_lock:
         if _ana_mod.analysis_ready:
-            import subprocess
             subprocess.Popen(["xdg-open", _ana_mod.analysis_path])
-            _ana_mod.analysis_ready = False 
+            _ana_mod.analysis_ready = False
+
     pygame.display.flip()
 
     if frame is not None:
