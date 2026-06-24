@@ -15,11 +15,28 @@ from config import *
 from microbes import get_all_microbes, get_microbe_data, calculate_growth_rate
 from simulation import Particle, create_explosion, handle_collisions, update_bacteria_growth
 from gestures import GestureController
-from ui import Slider, PopulationGraph, draw_ui, CustomMicrobeForm, draw_ui_overlay, StressGraph, InvasionGraph
+from ui import (Slider, PopulationGraph, draw_ui, CustomMicrobeForm,
+                draw_ui_overlay, StressGraph, InvasionGraph,
+                draw_hand_indicator_panel, draw_reset_charge_overlay)
+
+# from ui import Slider, PopulationGraph, draw_ui, CustomMicrobeForm, draw_ui_overlay, StressGraph, InvasionGraph
 from analysis import show_analysis
 
 from simulation import Particle, create_explosion, handle_collisions, update_bacteria_growth, contaminate
 from microbes import get_all_microbes, get_microbe_data, calculate_growth_rate, get_invader
+
+from predictor_bridge import PredictorBridge
+from predictor_window import PredictorWindow
+
+import os
+os.environ["MPLBACKEND"] = "TkAgg"
+
+import matplotlib
+matplotlib.use('TkAgg')  
+
+predictor_bridge = PredictorBridge(capacity=MAX_PARTICLES)
+predictor_window = PredictorWindow(predictor_bridge)
+predictor_window.start()
 
 
 # ========================
@@ -312,14 +329,40 @@ while running:
 
     if result and not custom_form.active:
         frame = gesture_controller.draw_landmarks(frame, result)
-        hand_forces, vortex_centers, temp, humidity, ph, light, current_microbe, gesture_text = \
-            gesture_controller.process_gestures(
-                result, current_w, current_h,
-                temp, humidity, ph, light, current_microbe
-            )
+        frame = gesture_controller.draw_hand_overlay_cv2(frame, result)
+        hand_forces, vortex_centers, temp, humidity, ph, light, nutrients, current_microbe, gesture_text = \
+    gesture_controller.process_gestures(
+        result, current_w, current_h,
+        temp, humidity, ph, light, nutrients, current_microbe
+    )
         if any(w in _kb_gesture for w in
-               ["Antibiótico", "Invasión", "Extinción", "Nutrientes repuestos"]):
+                ["Antibiótico", "Invasión", "Extinción", "Nutrientes repuestos"]):
             gesture_text = _kb_gesture
+
+        # ── Gesto de reinicio ──────────────────────────────────────
+        if gesture_controller.reset_triggered:
+            particles.clear()
+            particles = [
+                Particle(
+                    random.randint(80, current_w - 80),
+                    random.randint(80, current_h - 150),
+                    is_bacteria=True,
+                    microbe_key=current_microbe
+                )
+                for _ in range(INITIAL_PARTICLES)
+            ]
+            simulated_days = 0.0
+            _start_ticks   = pygame.time.get_ticks()
+            _paused_accum  = 0
+            _pause_start   = 0
+            simulation_history.clear()
+            invasion_history.clear()
+            invasion_graph.clear()
+            population_graph.history.clear()
+            import simulation as _sim_r
+            _sim_r.invasion_active = False
+            _sim_r.invasion_key    = None
+            gesture_text = "¡Reinicio por gesto!"
 
     if gesture_controller.pause_triggered:
         paused = not paused
@@ -329,13 +372,6 @@ while running:
             _paused_accum += pygame.time.get_ticks() - _pause_start
         gesture_controller.pause_triggered = False
 
-    if gesture_text.startswith("Nutrientes:"):
-        try:
-            nutrients = float(gesture_text.split(":")[1])
-            nutrient_slider.update(nutrients)
-            gesture_text = f"Nutrientes: {nutrients:.0f}%"
-        except:
-            pass
 
     # Sincronizar sliders
     temp_slider.update(temp)
@@ -391,6 +427,26 @@ while running:
             current_microbe, MAX_PARTICLES
         )
         nutrient_slider.update(nutrients)
+
+        predictor_bridge.push({
+            "population": len(particles),
+            "temp":       temp,
+            "hum":        humidity / 100.0,
+            "ph":         ph,
+            "uv":         light / 100.0,
+            "nut":        nutrients / 100.0,
+            "microbe": current_microbe,
+        })
+        # Entrenamiento incremental: le enseñamos la tasa observada al modelo
+        if len(population_graph.history) >= 2:
+            prev_pop = population_graph.history[-2]
+            curr_pop = population_graph.history[-1]
+            if prev_pop > 0:
+                observed_rate = (curr_pop - prev_pop) / prev_pop
+                X_row = [temp / 60.0, humidity / 100.0, ph / 9.0,
+                        light / 100.0, nutrients / 100.0]
+                predictor_bridge.update_model(X_row, observed_rate)
+
 
         if enable_collisions and len(particles) < 600:
             handle_collisions(particles)
@@ -455,11 +511,13 @@ while running:
                     simulated_days, particles, population_graph, stress_graph,
                     temp_slider, hum_slider, ph_slider, light_slider, nutrient_slider,
                     invasion_graph=invasion_graph)
+    draw_hand_indicator_panel(screen, gesture_controller.hand_states)
+    draw_reset_charge_overlay(screen, gesture_controller.reset_progress)
 
     # 5. Texto de gesto
     if any(w in gesture_text for w in
            ["Temp", "Humedad", "pH", "Luz", "Microbio",
-            "Antibiótico", "Nutrientes", "Invasión", "Extinción"]):
+            "Antibiótico", "Nutrientes", "Invasión", "Extinción", "Reinicio"]):
         gesture_font = pygame.font.SysFont("Arial", 28)
         gesture_surf = gesture_font.render(gesture_text, True, PURPLE)
         screen.blit(gesture_surf,

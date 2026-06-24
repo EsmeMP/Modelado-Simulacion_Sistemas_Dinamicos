@@ -725,26 +725,101 @@
     const cx = canvas.getContext('2d');
 
     if (type === 'bacteria') {
-      let dots = [];
-      for (let i = 0; i < 6; i++) {
-        dots.push({ x: Math.random()*w, y: Math.random()*h, vx:(Math.random()-0.5)*0.6, vy:(Math.random()-0.5)*0.6, r: 2+Math.random()*1.5 });
+      const bacteria = [];
+      for (let i = 0; i < 13; i++) {
+        const flagCount = 6 + Math.floor(Math.random() * 5);
+        bacteria.push({
+          x: Math.random() * w,
+          y: Math.random() * h,
+          vx: (Math.random() - 0.5) * 0.35,
+          vy: (Math.random() - 0.5) * 0.35,
+          angle: Math.random() * Math.PI * 2,
+          rot: (Math.random() - 0.5) * 0.007,
+          rx: 6 + Math.random() * 2.5,   // antes: 13 + random * 5
+          ry: 3.5 + Math.random() * 1.5, // antes: 7 + random * 3
+          flagCount,
+          phase: Math.random() * Math.PI * 2,
+          flagAngles: Array.from({ length: flagCount }, () => Math.random() * Math.PI * 2),
+          flagLen: Array.from({ length: flagCount }, () => 7 + Math.random() * 5), // antes: 14 + random * 10
+        });
       }
-      (function loop() {
-        cx.clearRect(0,0,w,h);
-        if (dots.length < 22 && Math.random() > 0.93) {
-          const p = dots[Math.floor(Math.random()*dots.length)];
-          dots.push({ x:p.x, y:p.y, vx:(Math.random()-0.5)*0.6, vy:(Math.random()-0.5)*0.6, r:2+Math.random()*1.5 });
+
+      function drawBacteria(b, time) {
+        cx.save();
+        cx.translate(b.x, b.y);
+        cx.rotate(b.angle);
+
+        // Flagelos
+        b.flagAngles.forEach((fa, idx) => {
+          const len = b.flagLen[idx];
+          const wave = Math.sin(time * 0.002 + b.phase + idx * 1.1) * 0.35;
+          const startX = Math.cos(fa) * b.rx * 0.85;
+          const startY = Math.sin(fa) * b.ry * 0.85;
+          const midX = startX + Math.cos(fa + wave) * len * 0.5;
+          const midY = startY + Math.sin(fa + wave) * len * 0.5;
+          const endX = startX + Math.cos(fa + wave * 1.6) * len;
+          const endY = startY + Math.sin(fa + wave * 1.6) * len;
+
+          cx.beginPath();
+          cx.moveTo(startX, startY);
+          cx.quadraticCurveTo(midX, midY, endX, endY);
+          cx.strokeStyle = 'rgba(193,0,34,0.55)';
+          cx.lineWidth = 1.1;
+          cx.lineCap = 'round';
+          cx.stroke();
+        });
+
+        // Cuerpo ovalado
+        cx.beginPath();
+        const steps = 48;
+        for (let i = 0; i <= steps; i++) {
+          const a = (i / steps) * Math.PI * 2;
+          const noise = Math.sin(a * 4 + time * 0.0015 + b.phase) * 0.45;
+          const px = Math.cos(a) * (b.rx + noise);
+          const py = Math.sin(a) * (b.ry + noise * 0.5);
+          i === 0 ? cx.moveTo(px, py) : cx.lineTo(px, py);
         }
-        dots.forEach(d => {
-          d.x += d.vx; d.y += d.vy;
-          if (d.x < 0 || d.x > w) d.vx *= -1;
-          if (d.y < 0 || d.y > h) d.vy *= -1;
-          cx.beginPath(); cx.fillStyle = 'rgba(0,255,100,0.85)'; cx.arc(d.x, d.y, d.r, 0, Math.PI*2); cx.fill();
+        cx.closePath();
+        cx.fillStyle = '#7a0015';
+        cx.fill();
+        cx.strokeStyle = '#c10022';
+        cx.lineWidth = 0.6;
+        cx.stroke();
+
+        // Brillo interno
+        const grd = cx.createRadialGradient(-b.rx * 0.25, -b.ry * 0.25, 0, 0, 0, b.rx);
+        grd.addColorStop(0, 'rgba(249, 7, 211, 0.8)');
+        grd.addColorStop(1, 'rgba(80,0,10,0.0)');
+        cx.beginPath();
+        cx.ellipse(0, 0, b.rx * 0.9, b.ry * 0.9, 0, 0, Math.PI * 2);
+        cx.fillStyle = grd;
+        cx.fill();
+
+        // Núcleo
+        cx.beginPath();
+        cx.ellipse(-b.rx * 0.1, -b.ry * 0.1, b.rx * 0.25, b.ry * 0.25, 0, 0, Math.PI * 2);
+        cx.fillStyle = 'rgba(255,200,200,0.13)';
+        cx.fill();
+
+        cx.restore();
+      }
+
+      (function loop() {
+        cx.clearRect(0, 0, w, h);
+        const t = Date.now();
+        bacteria.forEach(b => {
+          b.x += b.vx;
+          b.y += b.vy + Math.sin(t * 0.001 + b.x * 0.04) * 0.04;
+          b.angle += b.rot;
+          if (b.x > w + 40) b.x = -40;
+          if (b.x < -40) b.x = w + 40;
+          if (b.y > h + 40) b.y = -40;
+          if (b.y < -40) b.y = h + 40;
+          drawBacteria(b, t);
         });
         requestAnimationFrame(loop);
       })();
     }
-
     if (type === 'wave') {
       let t = 0;
       (function loop() {
